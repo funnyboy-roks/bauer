@@ -134,6 +134,9 @@ pub(crate) fn get_single_generic<'a>(ty: &'a Type, name: Option<&str>) -> Option
 ///
 /// Set the visibilty for the created builder
 ///
+/// The visibility can be set to `pub(self)` in order to make the builder private to the current
+/// module.
+///
 /// ```
 /// # use bauer::Builder;
 /// #[derive(Builder)]
