@@ -1,8 +1,10 @@
 use convert_case::{Case, Casing};
 use quote::format_ident;
 use syn::{
-    Expr, ExprRange, Field, Ident, LitStr, Token, Type, Visibility, parse::ParseStream,
+    Expr, ExprRange, Field, Ident, LitStr, Token, Type, Visibility, parenthesized,
+    parse::{Parse, ParseStream},
     spanned::Spanned,
+    token::Paren,
 };
 
 use crate::get_single_generic;
@@ -25,10 +27,11 @@ enum Attribute {
     Rename,
     SkipPrefix,
     SkipSuffix,
+    Tuple,
 }
 
 impl Attribute {
-    const ALL: [Self; 7] = [
+    const ALL: [Self; 8] = [
         Self::Default,
         Self::Into,
         Self::Repeat,
@@ -36,6 +39,7 @@ impl Attribute {
         Self::Rename,
         Self::SkipPrefix,
         Self::SkipSuffix,
+        Self::Tuple,
     ];
 
     const fn as_str(self) -> &'static str {
@@ -47,6 +51,7 @@ impl Attribute {
             Attribute::Rename => "rename",
             Attribute::SkipPrefix => "skip_prefix",
             Attribute::SkipSuffix => "skip_suffix",
+            Attribute::Tuple => "tuple",
         }
     }
 }
@@ -98,14 +103,18 @@ pub struct Repeat {
 #[derive(Default)]
 pub struct FieldAttr {
     /// Some(Some(expr)) -> default is expr
-    /// Some(None) -> default is Default::default()
-    /// None -> no default
+    /// Some(None)       -> default is Default::default()
+    /// None             -> no default
     pub default: Option<Option<Expr>>,
     pub into: bool,
     pub repeat: Option<Repeat>,
     pub rename: Option<Ident>,
     pub skip_prefix: bool,
     pub skip_suffix: bool,
+    /// Some(Some(names)) -> tuple argument use `names` for names
+    /// Some(None)        -> tuple argument use `field_N` for names
+    /// None              -> tuple is passed as a value
+    pub tuple: Option<Option<Vec<Ident>>>,
 }
 
 impl FieldAttr {
@@ -196,6 +205,44 @@ impl FieldAttr {
                         bail!(ident.span() => "`skip_suffix` may only be used once.");
                     }
                     out.skip_suffix = true;
+                }
+                Attribute::Tuple => {
+                    if out.tuple.is_some() {
+                        bail!(ident.span() => "`tuple` may only be used once.");
+                    }
+
+                    let tuple = match &field.ty {
+                        Type::Tuple(tuple) => tuple,
+                        _ => match &out.repeat {
+                            Some(Repeat {
+                                inner_ty: Type::Tuple(tuple),
+                                ..
+                            }) => tuple,
+                            _ => {
+                                bail!(ident.span() => "`tuple` may only be used on fields that are tuples");
+                            }
+                        },
+                    };
+
+                    if input.peek(Paren) {
+                        let content;
+                        let paren = parenthesized!(content in input);
+                        let idents = content.parse_terminated(Ident::parse, Token![,])?;
+
+                        match tuple.elems.len().cmp(&idents.len()) {
+                            std::cmp::Ordering::Less => {
+                                bail!(paren.span.join() => "More names than elements in tuple")
+                            }
+                            std::cmp::Ordering::Equal => {}
+                            std::cmp::Ordering::Greater => {
+                                bail!(paren.span.join() => "Fewer names than elements in tuple")
+                            }
+                        }
+
+                        out.tuple = Some(Some(idents.into_iter().collect()))
+                    } else {
+                        out.tuple = Some(None)
+                    }
                 }
             }
 

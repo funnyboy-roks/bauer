@@ -297,6 +297,39 @@ pub(crate) fn get_single_generic<'a>(ty: &'a Type, name: Option<&str>) -> Option
 ///     .build();
 /// assert_eq!(foo, Foo { items: vec![0, 1] });
 /// ```
+///
+/// ### **`tuple`**
+///
+/// Rather than accepting a field that is a tuple by value, accept each element of the tuple as a
+/// separate parameters to the setter function.
+///
+/// If names are specified using `tuple(name1, name2, ...)`, they will be used for the names of the
+/// parameters to the function (see example).
+///
+/// Note: If used with `repeat`, `repeat` must come before `tuple`.
+///
+/// ```
+/// # use bauer::Builder;
+/// #[derive(Builder)]
+/// pub struct Foo {
+///     #[builder(tuple)]
+///     tuple: (i32, i32),
+///     #[builder(tuple(a, b))]
+///     tuple_names: (i32, i32),
+///     #[builder(into, tuple(a, b))]
+///     tuple_into: (String, f64),
+///     #[builder(repeat, tuple(foo, bar))]
+///     tuples: Vec<(i32, i32)>,
+/// }
+///
+/// let foo = Foo::builder()
+///     .tuple(0, 1)
+///     .tuple_names(2, 3)
+///     .tuple_into("pi", 3.14)
+///     .tuples(4, 5)
+///     .tuples(6, 7)
+///     .build();
+/// ```
 #[proc_macro_derive(Builder, attributes(builder))]
 pub fn builder(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
@@ -391,26 +424,57 @@ pub fn builder(input: TokenStream) -> TokenStream {
             }
             let fn_ident = Ident::new(&fn_ident, ident.span());
 
-            let (source, value) = if f.attr.into {
-                (
-                    quote! { impl ::core::convert::Into<#ty> },
-                    quote! { ::core::convert::Into::into(#field_name) },
-                )
-            } else {
-                (ty.to_token_stream(), field_name.to_token_stream())
+            let (args, value) = match (ty, &f.attr.tuple) {
+                (Type::Tuple(tuple), Some(t)) => {
+                    let names = t.clone().unwrap_or_else(|| {
+                        (0..tuple.elems.len())
+                            .map(|n| format_ident!("{}_{}", field_name, n))
+                            .collect()
+                    });
+
+                    let types = tuple.elems.iter();
+
+                    if f.attr.into {
+                        (
+                            quote! {
+                                #(#names: impl ::core::convert::Into<#types>),*
+                            },
+                            quote! { (#(::core::convert::Into::into(#names)),*) },
+                        )
+                    } else {
+                        (
+                            quote! {
+                                #(#names: #types),*
+                            },
+                            quote! { (#(#names),*) },
+                        )
+                    }
+                }
+                _ => {
+                    let (source, value) = if f.attr.into {
+                        (
+                            quote! { impl ::core::convert::Into<#ty> },
+                            quote! { ::core::convert::Into::into(#field_name) },
+                        )
+                    } else {
+                        (ty.to_token_stream(), field_name.to_token_stream())
+                    };
+
+                    (quote! { #field_name: #source }, value)
+                }
             };
 
             if f.attr.repeat.is_some() {
                 let vec = &f.ident;
                 quote! {
-                    #builder_vis fn #fn_ident(#prefix self, #field_name: #source) -> #ret {
+                    #builder_vis fn #fn_ident(#prefix self, #args) -> #ret {
                         self.#vec.push(#value);
                         self
                     }
                 }
             } else {
                 quote! {
-                    #builder_vis fn #fn_ident(#prefix self, #field_name: #source) -> #ret {
+                    #builder_vis fn #fn_ident(#prefix self, #args) -> #ret {
                         self.#ident = Some(#value);
                         self
                     }
