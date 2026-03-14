@@ -1,7 +1,7 @@
 use convert_case::{Case, Casing};
 use quote::format_ident;
 use syn::{
-    Expr, ExprRange, Field, Ident, LitStr, Token, Type, Visibility, parenthesized,
+    Expr, ExprRange, Field, Ident, LitStr, Meta, Token, Type, Visibility, parenthesized,
     parse::{Parse, ParseStream},
     spanned::Spanned,
     token::Paren,
@@ -93,6 +93,7 @@ pub struct BuilderField {
     pub attr: FieldAttr,
     pub missing_err: Option<Ident>,
     pub wrapped_option: bool,
+    pub doc: Vec<syn::Attribute>,
 }
 
 pub struct Repeat {
@@ -275,6 +276,19 @@ impl TryFrom<&Field> for BuilderField {
             (&value.ty, false)
         };
 
+        let doc: Vec<syn::Attribute> = value
+            .attrs
+            .iter()
+            .filter(|a| {
+                if let Meta::NameValue(meta) = &a.meta {
+                    meta.path.get_ident().is_some_and(|n| n == "doc")
+                } else {
+                    false
+                }
+            })
+            .cloned()
+            .collect();
+
         Ok(BuilderField {
             ident: ident.clone(),
             vis: value.vis.clone(),
@@ -288,6 +302,7 @@ impl TryFrom<&Field> for BuilderField {
             },
             attr,
             wrapped_option,
+            doc,
         })
     }
 }

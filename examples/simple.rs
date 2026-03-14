@@ -1,8 +1,9 @@
 use bauer::Builder;
 
 #[derive(Debug, Builder)]
-#[builder(kind = "owned", prefix = "set_", visibility = pub(crate))]
+#[builder(kind = "owned", prefix = "set_")]
 pub struct Foo {
+    /// Hello
     #[builder(default = "42")]
     pub field_a: u32,
     pub field_b: bool,

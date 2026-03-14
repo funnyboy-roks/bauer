@@ -464,9 +464,12 @@ pub fn builder(input: TokenStream) -> TokenStream {
                 }
             };
 
+            let doc = &f.doc;
+
             if f.attr.repeat.is_some() {
                 let vec = &f.ident;
                 quote! {
+                    #(#doc)*
                     #builder_vis fn #fn_ident(#prefix self, #args) -> #ret {
                         self.#vec.push(#value);
                         self
@@ -474,6 +477,7 @@ pub fn builder(input: TokenStream) -> TokenStream {
                 }
             } else {
                 quote! {
+                    #(#doc)*
                     #builder_vis fn #fn_ident(#prefix self, #args) -> #ret {
                         self.#ident = Some(#value);
                         self
