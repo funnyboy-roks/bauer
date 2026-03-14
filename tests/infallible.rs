@@ -5,5 +5,6 @@ struct Foo {
 }
 
 fn main() {
-    let _foo: Foo = Foo::builder().field("hello").build();
+    let x: Foo = Foo::builder().field("hello").build();
+    assert_eq!(x.field, "hello");
 }

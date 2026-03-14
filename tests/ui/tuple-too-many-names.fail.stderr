@@ -1,0 +1,5 @@
+error: More names than elements in tuple
+ --> tests/ui/tuple-too-many-names.fail.rs:5:20
+  |
+5 |     #[builder(tuple(a, b, c))]
+  |                    ^^^^^^^^^
