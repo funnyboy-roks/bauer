@@ -475,7 +475,7 @@ pub fn builder(input: TokenStream) -> TokenStream {
             } else {
                 quote_spanned! {
                     field.ty.span() =>
-                    #name: self.#name.take().unwrap_or_else(|| ::core::default::Default::default())
+                    #name: self.#name.take().unwrap_or_default()
                 }
             }
         } else {
