@@ -69,6 +69,10 @@ pub(crate) fn get_single_generic<'a>(ty: &'a Type, name: Option<&str>) -> Option
 
 /// The main macro.
 ///
+/// The return type of `.build()` on the builder is a Result if the build can fail due to missing
+/// fields, invalid number of repeat arguments (`repeat_n`), etc.  If a call to `.build()` can
+/// _not_ fail, it will return the built struct directly.
+///
 /// ## Usage
 ///
 /// ```
@@ -161,15 +165,12 @@ pub(crate) fn get_single_generic<'a>(ty: &'a Type, name: Option<&str>) -> Option
 ///     b: f32, // defaults to PI
 /// }
 ///
-/// let foo = Foo::builder()
-///     .build()
-///     .unwrap();
+/// let foo = Foo::builder().build();
 /// assert_eq!(foo, Foo { a: 0, b: std::f32::consts::PI });
 ///
 /// let foo = Foo::builder()
 ///     .a(42)
-///     .build()
-///     .unwrap();
+///     .build();
 /// assert_eq!(foo, Foo { a: 42, b: std::f32::consts::PI });
 /// ```
 ///
@@ -214,8 +215,7 @@ pub(crate) fn get_single_generic<'a>(ty: &'a Type, name: Option<&str>) -> Option
 ///     .items(0)
 ///     .items(1)
 ///     .items(2)
-///     .build()
-///     .unwrap();
+///     .build();
 /// assert_eq!(foo, Foo { items: vec![0, 1, 2] });
 /// ```
 ///
@@ -270,8 +270,7 @@ pub(crate) fn get_single_generic<'a>(ty: &'a Type, name: Option<&str>) -> Option
 /// let foo = Foo::builder()
 ///     .item(0)
 ///     .item(1)
-///     .build()
-///     .unwrap();
+///     .build();
 /// assert_eq!(foo, Foo { items: vec![0, 1] });
 /// ```
 ///
@@ -295,8 +294,7 @@ pub(crate) fn get_single_generic<'a>(ty: &'a Type, name: Option<&str>) -> Option
 /// let foo = Foo::builder()
 ///     .item(0)
 ///     .item(1)
-///     .build()
-///     .unwrap();
+///     .build();
 /// assert_eq!(foo, Foo { items: vec![0, 1] });
 /// ```
 #[proc_macro_derive(Builder, attributes(builder))]
@@ -421,22 +419,25 @@ pub fn builder(input: TokenStream) -> TokenStream {
         })
         .collect();
 
-    let build_err_variants = fields_named.iter().flat_map(|f| {
-        let mut variants = Vec::new();
-        if let Some(err) = &f.missing_err {
-            variants.push(err.to_token_stream());
-        }
-        if let Some(Repeat {
-            len: Some((_, err)),
-            ..
-        }) = &f.attr.repeat
-        {
-            variants.push(quote! {
-                #err(usize)
-            });
-        }
-        variants.into_iter()
-    });
+    let build_err_variants: Vec<_> = fields_named
+        .iter()
+        .flat_map(|f| {
+            let mut variants = Vec::new();
+            if let Some(err) = &f.missing_err {
+                variants.push(err.to_token_stream());
+            }
+            if let Some(Repeat {
+                len: Some((_, err)),
+                ..
+            }) = &f.attr.repeat
+            {
+                variants.push(quote! {
+                    #err(usize)
+                });
+            }
+            variants.into_iter()
+        })
+        .collect();
 
     let field_names: Vec<_> = fields_named.iter().map(|f| &f.ident).collect();
 
@@ -490,11 +491,37 @@ pub fn builder(input: TokenStream) -> TokenStream {
 
     let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
 
-    quote! {
-        #[derive(::std::fmt::Debug, ::std::cmp::PartialEq, ::std::cmp::Eq)]
-        #builder_vis enum #build_err {
-            #(#build_err_variants),*
+    let build_fn = if build_err_variants.is_empty() {
+        quote! {
+            #builder_vis fn build(#prefix self) -> #ident #ty_generics {
+                #ident {
+                    #(#build_fields),*
+                }
+            }
         }
+    } else {
+        quote! {
+            #builder_vis fn build(#prefix self) -> ::core::result::Result<#ident #ty_generics, #build_err> {
+                Ok(#ident {
+                    #(#build_fields),*
+                })
+            }
+        }
+    };
+
+    let build_err_enum = if build_err_variants.is_empty() {
+        quote! {}
+    } else {
+        quote! {
+            #[derive(::std::fmt::Debug, ::std::cmp::PartialEq, ::std::cmp::Eq)]
+            #builder_vis enum #build_err {
+                #(#build_err_variants),*
+            }
+        }
+    };
+
+    quote! {
+        #build_err_enum
 
         #builder_vis struct #builder #ty_generics {
             #fields
@@ -503,11 +530,7 @@ pub fn builder(input: TokenStream) -> TokenStream {
         impl #impl_generics #builder #ty_generics #where_clause {
             #functions
 
-            #builder_vis fn build(#prefix self) -> ::core::result::Result<#ident #ty_generics, #build_err> {
-                Ok(#ident {
-                    #(#build_fields),*
-                })
-            }
+            #build_fn
         }
 
         impl #impl_generics ::core::default::Default for #builder #ty_generics #where_clause {
