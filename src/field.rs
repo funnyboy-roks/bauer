@@ -1,7 +1,9 @@
 use convert_case::{Case, Casing};
-use quote::format_ident;
+use proc_macro2::TokenStream;
+use quote::{format_ident, quote};
 use syn::{
-    Expr, ExprRange, Field, Ident, LitStr, Meta, Token, Type, Visibility, parenthesized,
+    Expr, ExprClosure, ExprRange, Field, Ident, LitStr, Meta, Token, Type, Visibility,
+    parenthesized,
     parse::{Parse, ParseStream},
     spanned::Spanned,
     token::Paren,
@@ -28,10 +30,11 @@ enum Attribute {
     SkipPrefix,
     SkipSuffix,
     Tuple,
+    Adapter,
 }
 
 impl Attribute {
-    const ALL: [Self; 8] = [
+    const ALL: [Self; 9] = [
         Self::Default,
         Self::Into,
         Self::Repeat,
@@ -40,6 +43,7 @@ impl Attribute {
         Self::SkipPrefix,
         Self::SkipSuffix,
         Self::Tuple,
+        Self::Adapter,
     ];
 
     const fn as_str(self) -> &'static str {
@@ -52,6 +56,7 @@ impl Attribute {
             Attribute::SkipPrefix => "skip_prefix",
             Attribute::SkipSuffix => "skip_suffix",
             Attribute::Tuple => "tuple",
+            Attribute::Adapter => "adapter",
         }
     }
 }
@@ -101,6 +106,57 @@ pub struct Repeat {
     pub len: Option<(ExprRange, Ident)>,
 }
 
+#[derive(Debug)]
+pub struct Adapter {
+    pub args: Vec<(Ident, Type)>,
+    pub expr: Expr,
+}
+
+impl Adapter {
+    pub fn to_args_and_value(&self) -> (TokenStream, TokenStream) {
+        let (names, types): (Vec<&Ident>, Vec<&Type>) =
+            self.args.iter().map(|(a, b)| (a, b)).collect();
+
+        let expr = &self.expr;
+
+        let args = quote! {
+            #(#names: #types),*
+        };
+        let expr = quote! { #expr };
+
+        (args, expr)
+    }
+}
+
+impl Parse for Adapter {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        let closure: ExprClosure = input.parse()?;
+        let mut args = Vec::with_capacity(closure.inputs.len());
+        for input in closure.inputs.into_iter() {
+            match input {
+                syn::Pat::Type(pt) => {
+                    let ident = match *pt.pat {
+                        syn::Pat::Ident(pi) => pi.ident,
+                        pat => bail!(pat.span() => "Expected `name: type` arguments"),
+                    };
+                    args.push((ident, *pt.ty));
+                }
+                syn::Pat::Ident(_) => {
+                    bail!(input.span() => "Type missing for argument");
+                }
+                _ => {
+                    bail!(input.span() => "Expected `name: type` arguments");
+                }
+            }
+        }
+
+        Ok(Self {
+            args,
+            expr: *closure.body,
+        })
+    }
+}
+
 #[derive(Default)]
 pub struct FieldAttr {
     /// Some(Some(expr)) -> default is expr
@@ -116,6 +172,7 @@ pub struct FieldAttr {
     /// Some(None)        -> tuple argument use `field_N` for names
     /// None              -> tuple is passed as a value
     pub tuple: Option<Option<Vec<Ident>>>,
+    pub adapter: Option<Adapter>,
 }
 
 impl FieldAttr {
@@ -244,6 +301,28 @@ impl FieldAttr {
                     } else {
                         out.tuple = Some(None)
                     }
+                }
+                Attribute::Adapter => {
+                    if out.adapter.is_some() {
+                        bail!(ident.span() => "`adapter` may only be used once.");
+                    }
+
+                    if out.tuple.is_some() {
+                        bail!(ident.span() => "`adapter` cannot be added with `tuple`");
+                    }
+
+                    let la = input.lookahead1();
+                    let adapters: Adapter = if la.peek(Paren) {
+                        let a;
+                        parenthesized!(a in input);
+                        a.parse()?
+                    } else if la.peek(Token![=]) {
+                        input.parse()?
+                    } else {
+                        return Err(la.error());
+                    };
+
+                    out.adapter = Some(adapters);
                 }
             }
 

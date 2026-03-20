@@ -427,43 +427,45 @@ pub fn builder(input: TokenStream) -> TokenStream {
             }
             let fn_ident = Ident::new(&fn_ident, ident.span());
 
-            let (args, value) = match (ty, &f.attr.tuple) {
-                (Type::Tuple(tuple), Some(t)) => {
-                    let names = t.clone().unwrap_or_else(|| {
-                        (0..tuple.elems.len())
-                            .map(|n| format_ident!("{}_{}", field_name, n))
-                            .collect()
-                    });
+            let (args, value) = if let Some(adapter) = &f.attr.adapter {
+                adapter.to_args_and_value()
+            } else {
+                match (ty, &f.attr.tuple) {
+                    (Type::Tuple(tuple), Some(t)) => {
+                        let names = t.clone().unwrap_or_else(|| {
+                            (0..tuple.elems.len())
+                                .map(|n| format_ident!("{}_{}", field_name, n))
+                                .collect()
+                        });
 
-                    let types = tuple.elems.iter();
+                        let types = tuple.elems.iter();
 
-                    if f.attr.into {
-                        (
-                            quote! {
-                                #(#names: impl ::core::convert::Into<#types>),*
-                            },
-                            quote! { (#(::core::convert::Into::into(#names)),*) },
-                        )
-                    } else {
-                        (
-                            quote! {
-                                #(#names: #types),*
-                            },
-                            quote! { (#(#names),*) },
-                        )
+                        if f.attr.into {
+                            (
+                                quote! {
+                                    #(#names: impl ::core::convert::Into<#types>),*
+                                },
+                                quote! { (#(::core::convert::Into::into(#names)),*) },
+                            )
+                        } else {
+                            (
+                                quote! {
+                                    #(#names: #types),*
+                                },
+                                quote! { (#(#names),*) },
+                            )
+                        }
                     }
-                }
-                _ => {
-                    let (source, value) = if f.attr.into {
-                        (
-                            quote! { impl ::core::convert::Into<#ty> },
-                            quote! { ::core::convert::Into::into(#field_name) },
-                        )
-                    } else {
-                        (ty.to_token_stream(), field_name.to_token_stream())
-                    };
-
-                    (quote! { #field_name: #source }, value)
+                    _ => {
+                        if f.attr.into {
+                            (
+                                quote! { #field_name: impl ::core::convert::Into<#ty> },
+                                quote! { ::core::convert::Into::into(#field_name) },
+                            )
+                        } else {
+                            (quote! { #field_name: #ty }, field_name.to_token_stream())
+                        }
+                    }
                 }
             };
 
