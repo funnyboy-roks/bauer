@@ -207,6 +207,10 @@ impl FieldAttr {
                         bail!(ident.span() => "`into` may only be used once.");
                     }
 
+                    if out.adapter.is_some() {
+                        bail!(ident.span() => "`into` cannot be added with `adapter`");
+                    }
+
                     out.into = true
                 }
                 Attribute::Repeat => {
@@ -269,6 +273,10 @@ impl FieldAttr {
                         bail!(ident.span() => "`tuple` may only be used once.");
                     }
 
+                    if out.adapter.is_some() {
+                        bail!(ident.span() => "`tuple` cannot be added with `adapter`");
+                    }
+
                     let tuple = match &field.ty {
                         Type::Tuple(tuple) => tuple,
                         _ => match &out.repeat {
@@ -309,6 +317,10 @@ impl FieldAttr {
 
                     if out.tuple.is_some() {
                         bail!(ident.span() => "`adapter` cannot be added with `tuple`");
+                    }
+
+                    if out.into {
+                        bail!(ident.span() => "`adapter` cannot be added with `into`");
                     }
 
                     let la = input.lookahead1();
