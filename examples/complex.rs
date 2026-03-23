@@ -20,6 +20,8 @@ pub struct Foo {
     pub field_h: Vec<u32>,
     #[builder(repeat, repeat_n = 1..=3)]
     pub field_i: Vec<u32>,
+    #[builder(repeat = char)]
+    pub field_j: String,
 }
 
 fn main() {
@@ -33,6 +35,8 @@ fn main() {
         .field_i(4)
         .field_i(5)
         .field_i(6)
+        .field_j('h')
+        .field_j('i')
         .build()
         .unwrap();
 
@@ -50,6 +54,7 @@ fn main() {
             field_g: vec![0, 1],
             field_h: vec![2, 3],
             field_i: vec![4, 5, 6],
+            field_j: String::from("hi"),
         }
     );
 }

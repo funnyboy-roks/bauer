@@ -222,12 +222,19 @@ impl FieldAttr {
                         bail!(ident.span() => "`repeat` cannot be added with `default`");
                     }
 
-                    let Some(inner) = get_single_generic(&field.ty, None) else {
-                        bail!(field.ty.span() => "Cannot repeat on value with no generics");
+                    let inner = if input.peek(Token![=]) {
+                        let _: Token![=] = input.parse()?;
+                        let s: Type = input.parse()?;
+                        s
+                    } else {
+                        let Some(inner) = get_single_generic(&field.ty, None) else {
+                            bail!(field.ty.span() => "Inner type must be specified to repeat on type without generics");
+                        };
+                        inner.clone()
                     };
 
                     out.repeat = Some(Repeat {
-                        inner_ty: inner.clone(),
+                        inner_ty: inner,
                         len: None,
                     });
                 }

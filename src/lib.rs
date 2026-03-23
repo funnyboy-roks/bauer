@@ -517,7 +517,7 @@ pub fn builder(input: TokenStream) -> TokenStream {
     let build_fields = fields_named.iter().map(|field| {
         let name = &field.ident;
 
-        if let Some(Repeat { len, .. }) = &field.attr.repeat {
+        if let Some(Repeat { inner_ty, len }) = &field.attr.repeat {
             if let Some((range, err)) = len {
                 quote! {
                     #name: match self.#name.len() {
@@ -526,8 +526,11 @@ pub fn builder(input: TokenStream) -> TokenStream {
                     }
                 }
             } else {
-                quote! {
-                    #name: self.#name.drain(..).collect()
+                quote_spanned! {
+                    inner_ty.span() =>
+                    // using associated function syntax as that gives better error messages
+                    // (i.e., not "call chain may not have expected associated type"
+                    #name: ::std::iter::FromIterator::from_iter(self.#name.drain(..))
                 }
             }
         } else if field.wrapped_option {
