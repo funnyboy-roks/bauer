@@ -1,0 +1,5 @@
+error: `tuple` may only be used on fields that are tuples
+ --> tests/ui/tuple-adapter-conflict.fail.rs:5:15
+  |
+5 |     #[builder(tuple, adapter(|x: u32, y: u32| (x + 1, y + 1)))]
+  |               ^^^^^

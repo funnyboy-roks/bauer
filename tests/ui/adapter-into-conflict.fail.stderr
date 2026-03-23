@@ -1,0 +1,5 @@
+error: `into` cannot be added with `adapter`
+ --> tests/ui/adapter-into-conflict.fail.rs:5:57
+  |
+5 |     #[builder(adapter(|x: u32, y: u32| (x + 1, y + 1)), into)]
+  |                                                         ^^^^
