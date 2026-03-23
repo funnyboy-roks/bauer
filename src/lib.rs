@@ -177,31 +177,12 @@ pub(crate) fn get_single_generic<'a>(ty: &'a Type, name: Option<&str>) -> Option
 /// assert_eq!(foo, Foo { a: 42, b: std::f32::consts::PI });
 /// ```
 ///
-/// ### **`into`**
-///
-/// Make the method accept anything can be turned into the field.
-///
-/// ```
-/// # use bauer::Builder;
-/// # const _: &str = stringify!(
-/// #[derive(Builder)]
-/// # );
-/// # #[derive(Builder, PartialEq, Debug)]
-/// pub struct Foo {
-///     #[builder(into)]
-///     a: String,
-/// }
-///
-/// let foo = Foo::builder()
-///     .a("hello")
-///     .build()
-///     .unwrap();
-/// assert_eq!(foo, Foo { a: String::from("hello") });
-/// ```
-///
 /// ### **`repeat`**
 ///
 /// Make the method accept only a single item and build a list from it
+///
+/// When using a data structure that does not have the inner type as its singular generic, the type
+/// can be specified using `repeat = <type>`.
 ///
 /// ```
 /// # use bauer::Builder;
@@ -212,14 +193,25 @@ pub(crate) fn get_single_generic<'a>(ty: &'a Type, name: Option<&str>) -> Option
 /// pub struct Foo {
 ///     #[builder(repeat)]
 ///     items: Vec<u32>,
+///     #[builder(repeat = char)]
+///     chars: String,
 /// }
 ///
 /// let foo = Foo::builder()
 ///     .items(0)
 ///     .items(1)
 ///     .items(2)
+///     .chars('a')
+///     .chars('b')
+///     .chars('c')
 ///     .build();
-/// assert_eq!(foo, Foo { items: vec![0, 1, 2] });
+/// assert_eq!(
+///     foo,
+///     Foo {
+///         items: vec![0, 1, 2],
+///         chars: String::from("abc"),
+///     },
+/// );
 /// ```
 ///
 /// ### **`repeat_n`**
@@ -301,6 +293,28 @@ pub(crate) fn get_single_generic<'a>(ty: &'a Type, name: Option<&str>) -> Option
 /// assert_eq!(foo, Foo { items: vec![0, 1] });
 /// ```
 ///
+/// ### **`into`**
+///
+/// Make the method accept anything can be turned into the field.
+///
+/// ```
+/// # use bauer::Builder;
+/// # const _: &str = stringify!(
+/// #[derive(Builder)]
+/// # );
+/// # #[derive(Builder, PartialEq, Debug)]
+/// pub struct Foo {
+///     #[builder(into)]
+///     a: String,
+/// }
+///
+/// let foo = Foo::builder()
+///     .a("hello")
+///     .build()
+///     .unwrap();
+/// assert_eq!(foo, Foo { a: String::from("hello") });
+/// ```
+///
 /// ### **`tuple`**
 ///
 /// Rather than accepting a field that is a tuple by value, accept each element of the tuple as a
@@ -332,6 +346,33 @@ pub(crate) fn get_single_generic<'a>(ty: &'a Type, name: Option<&str>) -> Option
 ///     .tuples(4, 5)
 ///     .tuples(6, 7)
 ///     .build();
+/// ```
+///
+/// ### **`adapter`**
+///
+/// Create a custom implementation for the generated function.  The adapter uses the closure syntax
+/// with types specified and will generate the method accordingly.
+///
+/// Any number of arguments are allowed and will be used in the generated function.
+///
+/// Conflicts with `into` and `tuple`.
+///
+/// ```
+/// # use bauer::Builder;
+/// # const _: &str = stringify!(
+/// #[derive(Builder)]
+/// # );
+/// # #[derive(Builder, PartialEq, Debug)]
+/// pub struct Foo {
+///     #[builder(adapter = |x: u32, y: u32| format!("{}/{}", x, y))]
+///     field: String,
+/// }
+///
+/// let foo = Foo::builder()
+///     .field(5, 23)
+///     .build()
+///     .unwrap();
+/// assert_eq!(foo, Foo { field: String::from("5/23") });
 /// ```
 #[proc_macro_derive(Builder, attributes(builder))]
 pub fn builder(input: TokenStream) -> TokenStream {

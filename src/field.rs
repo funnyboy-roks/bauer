@@ -336,6 +336,7 @@ impl FieldAttr {
                         parenthesized!(a in input);
                         a.parse()?
                     } else if la.peek(Token![=]) {
+                        let _: Token![=] = input.parse()?;
                         input.parse()?
                     } else {
                         return Err(la.error());
