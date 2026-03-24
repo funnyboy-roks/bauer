@@ -321,9 +321,7 @@ impl FieldAttr {
             return adapter.to_args_and_value();
         }
 
-        if let Some(t) = &self.tuple
-            && let Type::Tuple(tuple) = ty
-        {
+        if let (Some(t), Type::Tuple(tuple)) = (&self.tuple, ty) {
             let names = t.clone().unwrap_or_else(|| {
                 (0..tuple.elems.len())
                     .map(|n| format_ident!("{}_{}", field_name, n))
