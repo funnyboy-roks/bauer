@@ -25,12 +25,13 @@ use quote::{ToTokens, format_ident, quote, quote_spanned};
 use syn::{DeriveInput, parse::ParseStream, parse_macro_input, spanned::Spanned};
 
 use crate::{
-    builder::BuilderAttr,
+    builder::{BuilderAttr, Kind},
     field::{BuilderField, Repeat},
 };
 
 mod builder;
 mod field;
+mod type_state;
 
 /// The main macro.
 ///
@@ -412,6 +413,10 @@ pub fn builder(input: TokenStream) -> TokenStream {
             }
         })
         .collect();
+
+    if attr.kind == Kind::TypeState {
+        return type_state::type_state_builder(&attr, &input, &fields_named).into();
+    }
 
     let functions: TokenStream2 = fields_named.iter().map(|f| f.function(&attr)).collect();
 

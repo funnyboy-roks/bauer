@@ -17,12 +17,12 @@ macro_rules! bail {
     }
 }
 
-#[derive(Debug, Default, Clone, Copy)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub enum Kind {
     #[default]
     Owned,
     Borrowed,
-    // TypeState,
+    TypeState,
 }
 
 impl FromStr for Kind {
@@ -32,7 +32,7 @@ impl FromStr for Kind {
         match s {
             "owned" => Ok(Self::Owned),
             "borrowed" => Ok(Self::Borrowed),
-            // "type-state" => Ok(Self::TypeState),
+            "type-state" => Ok(Self::TypeState),
             _ => Err(format!(
                 "Unknown kind \"{}\".  Valid kinds are: \"owned\", \"borrowed\"",
                 s
@@ -117,6 +117,7 @@ impl BuilderAttr {
         match self.kind {
             Kind::Owned => quote! { mut self },
             Kind::Borrowed => quote! { &mut self },
+            Kind::TypeState => quote! { self },
         }
     }
 
@@ -124,6 +125,9 @@ impl BuilderAttr {
         match self.kind {
             Kind::Owned => quote! { Self },
             Kind::Borrowed => quote! { &mut Self },
+            Kind::TypeState => {
+                panic!("This function should not be called on Kind::TypeState")
+            }
         }
     }
 

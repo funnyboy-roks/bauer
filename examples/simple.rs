@@ -1,7 +1,7 @@
 use bauer::Builder;
 
 #[derive(Debug, Builder)]
-#[builder(kind = "owned", prefix = "set_")]
+#[builder(kind = "type-state", prefix = "set_")]
 pub struct Foo {
     /// Hello
     #[builder(default = "42")]

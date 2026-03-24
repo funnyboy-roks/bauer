@@ -186,7 +186,7 @@ pub struct BuilderField {
 }
 
 impl BuilderField {
-    fn function_ident(&self, builder_attr: &BuilderAttr) -> Ident {
+    pub fn function_ident(&self, builder_attr: &BuilderAttr) -> Ident {
         let ident = self.attr.rename.as_ref().unwrap_or(&self.ident);
         let prefix = if self.attr.skip_prefix {
             ""
@@ -316,7 +316,7 @@ pub struct FieldAttr {
 }
 
 impl FieldAttr {
-    fn to_args_and_value(&self, ty: &Type, field_name: &Ident) -> (TokenStream, TokenStream) {
+    pub fn to_args_and_value(&self, ty: &Type, field_name: &Ident) -> (TokenStream, TokenStream) {
         if let Some(adapter) = &self.adapter {
             return adapter.to_args_and_value();
         }
