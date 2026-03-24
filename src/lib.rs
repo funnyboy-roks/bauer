@@ -22,50 +22,15 @@
 use proc_macro::TokenStream;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{ToTokens, format_ident, quote, quote_spanned};
-use std::fmt::Write;
-use syn::{DeriveInput, Ident, Type, parse::ParseStream, parse_macro_input, spanned::Spanned};
+use syn::{DeriveInput, parse::ParseStream, parse_macro_input, spanned::Spanned};
 
 use crate::{
-    builder::{BuilderAttr, Kind},
+    builder::BuilderAttr,
     field::{BuilderField, Repeat},
 };
 
 mod builder;
 mod field;
-
-pub(crate) fn get_single_generic<'a>(ty: &'a Type, name: Option<&str>) -> Option<&'a Type> {
-    match ty {
-        Type::Path(path)
-            if path
-                .path
-                .segments
-                .last()
-                .is_some_and(|s| name.is_none_or(|name| s.ident == name))
-                && path.path.segments.len() == 1 =>
-        {
-            let option = path
-                .path
-                .segments
-                .last()
-                .expect("checked in guard condition");
-
-            let arg = match option.arguments {
-                syn::PathArguments::AngleBracketed(ref args) if args.args.len() == 1 => {
-                    let Some(syn::GenericArgument::Type(arg)) = args.args.first() else {
-                        return None;
-                    };
-                    arg
-                }
-                _ => return None,
-            };
-            Some(arg)
-        }
-        Type::Array(arr) if name.is_none() => Some(&arr.elem),
-        Type::Slice(slice) if name.is_none() => Some(&slice.elem),
-        Type::Reference(r) => get_single_generic(&r.elem, name),
-        _ => None,
-    }
-}
 
 /// The main macro.
 ///
@@ -404,11 +369,8 @@ pub fn builder(input: TokenStream) -> TokenStream {
         }
     };
 
-    let (prefix, ret) = match attr.kind {
-        Kind::Owned => (quote! { mut }, quote! { Self }),
-        Kind::Borrowed => (quote! { &mut }, quote! { &mut Self }),
-    };
-    let builder_vis = attr.vis;
+    let self_param = attr.self_param();
+    let builder_vis = &attr.vis;
 
     let builder = format_ident!("{}Builder", ident);
     let build_err = format_ident!("{}BuildError", ident);
@@ -451,103 +413,32 @@ pub fn builder(input: TokenStream) -> TokenStream {
         })
         .collect();
 
-    let functions: TokenStream2 = fields_named
-        .iter()
-        .map(|f| {
-            let field_name = &f.ident;
-            let ident = f.attr.rename.as_ref().unwrap_or(&f.ident);
-            let ty = f.attr.repeat.as_ref().map(|r| &r.inner_ty).unwrap_or(&f.ty);
+    let functions: TokenStream2 = fields_named.iter().map(|f| f.function(&attr)).collect();
 
-            let mut fn_ident = String::with_capacity(attr.prefix.len() + attr.suffix.len());
-            if !f.attr.skip_prefix {
-                fn_ident.push_str(&attr.prefix);
-            }
-            write!(fn_ident, "{}", ident).expect("Inserting into string will never fail");
-            if !f.attr.skip_suffix {
-                fn_ident.push_str(&attr.suffix);
-            }
-            let fn_ident = Ident::new(&fn_ident, ident.span());
-
-            let (args, value) = if let Some(adapter) = &f.attr.adapter {
-                adapter.to_args_and_value()
-            } else {
-                match (ty, &f.attr.tuple) {
-                    (Type::Tuple(tuple), Some(t)) => {
-                        let names = t.clone().unwrap_or_else(|| {
-                            (0..tuple.elems.len())
-                                .map(|n| format_ident!("{}_{}", field_name, n))
-                                .collect()
-                        });
-
-                        let types = tuple.elems.iter();
-
-                        if f.attr.into {
-                            (
-                                quote! {
-                                    #(#names: impl ::core::convert::Into<#types>),*
-                                },
-                                quote! { (#(::core::convert::Into::into(#names)),*) },
-                            )
-                        } else {
-                            (
-                                quote! {
-                                    #(#names: #types),*
-                                },
-                                quote! { (#(#names),*) },
-                            )
-                        }
-                    }
-                    _ => {
-                        if f.attr.into {
-                            (
-                                quote! { #field_name: impl ::core::convert::Into<#ty> },
-                                quote! { ::core::convert::Into::into(#field_name) },
-                            )
-                        } else {
-                            (quote! { #field_name: #ty }, field_name.to_token_stream())
-                        }
-                    }
-                }
-            };
-
-            let doc = &f.doc;
-
-            if f.attr.repeat.is_some() {
-                let vec = &f.ident;
-                quote! {
-                    #(#doc)*
-                    #builder_vis fn #fn_ident(#prefix self, #args) -> #ret {
-                        self.#vec.push(#value);
-                        self
-                    }
-                }
-            } else {
-                quote! {
-                    #(#doc)*
-                    #builder_vis fn #fn_ident(#prefix self, #args) -> #ret {
-                        self.#ident = Some(#value);
-                        self
-                    }
-                }
-            }
-        })
-        .collect();
-
-    let build_err_variants: Vec<_> = fields_named
+    let (build_err_variants, build_err_messages): (Vec<_>, Vec<_>) = fields_named
         .iter()
         .flat_map(|f| {
             let mut variants = Vec::new();
             if let Some(err) = &f.missing_err {
-                variants.push(err.to_token_stream());
+                let msg = format!("Missing required field '{}'", f.ident);
+                variants.push((
+                    err.to_token_stream(),
+                    quote! { Self::#err => write!(f, #msg) },
+                ));
             }
             if let Some(Repeat {
-                len: Some((_, err)),
+                len: Some((len, err)),
                 ..
             }) = &f.attr.repeat
             {
-                variants.push(quote! {
-                    #err(usize)
-                });
+                variants.push((
+                    quote! {
+                        #err(usize)
+                    },
+                    quote!{
+                        Self::#err(n) => write!(f, "Invalid number of repeat arguments provided.  Expected {:?}, got {}", #len, n)
+                    },
+                ));
             }
             variants.into_iter()
         })
@@ -560,7 +451,8 @@ pub fn builder(input: TokenStream) -> TokenStream {
 
         if let Some(Repeat { inner_ty, len }) = &field.attr.repeat {
             if let Some((range, err)) = len {
-                quote! {
+                quote_spanned! {
+                    range.span() =>
                     #name: match self.#name.len() {
                         #range => self.#name.drain(..).collect(),
                         len => return Err(#build_err::#err(len)),
@@ -610,7 +502,7 @@ pub fn builder(input: TokenStream) -> TokenStream {
 
     let build_fn = if build_err_variants.is_empty() {
         quote! {
-            #builder_vis fn build(#prefix self) -> #ident #ty_generics {
+            #builder_vis fn build(#self_param) -> #ident #ty_generics {
                 #ident {
                     #(#build_fields),*
                 }
@@ -618,7 +510,7 @@ pub fn builder(input: TokenStream) -> TokenStream {
         }
     } else {
         quote! {
-            #builder_vis fn build(#prefix self) -> ::core::result::Result<#ident #ty_generics, #build_err> {
+            #builder_vis fn build(#self_param) -> ::core::result::Result<#ident #ty_generics, #build_err> {
                 Ok(#ident {
                     #(#build_fields),*
                 })
@@ -634,6 +526,17 @@ pub fn builder(input: TokenStream) -> TokenStream {
             #builder_vis enum #build_err {
                 #(#build_err_variants),*
             }
+
+            impl ::core::fmt::Display for #build_err {
+                fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+                    use ::core::fmt::Write;
+                    match self {
+                        #(#build_err_messages),*
+                    }
+                }
+            }
+
+            impl ::core::error::Error for #build_err {}
         }
     };
 

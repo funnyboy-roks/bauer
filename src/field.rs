@@ -1,15 +1,101 @@
 use convert_case::{Case, Casing};
 use proc_macro2::TokenStream;
-use quote::{format_ident, quote};
+use quote::{ToTokens, format_ident, quote};
 use syn::{
-    Expr, ExprClosure, ExprRange, Field, Ident, LitStr, Meta, Token, Type, Visibility,
-    parenthesized,
+    Expr, ExprClosure, Field, Ident, LitStr, Meta, Pat, Token, Type, parenthesized,
     parse::{Parse, ParseStream},
     spanned::Spanned,
     token::Paren,
 };
 
-use crate::get_single_generic;
+use crate::BuilderAttr;
+
+pub(crate) fn get_single_generic<'a>(ty: &'a Type, name: Option<&str>) -> Option<&'a Type> {
+    match ty {
+        Type::Path(path)
+            if path
+                .path
+                .segments
+                .last()
+                .is_some_and(|s| name.is_none_or(|name| s.ident == name))
+                && path.path.segments.len() == 1 =>
+        {
+            let option = path
+                .path
+                .segments
+                .last()
+                .expect("checked in guard condition");
+
+            let arg = match option.arguments {
+                syn::PathArguments::AngleBracketed(ref args) if args.args.len() == 1 => {
+                    let Some(syn::GenericArgument::Type(arg)) = args.args.first() else {
+                        return None;
+                    };
+                    arg
+                }
+                _ => return None,
+            };
+            Some(arg)
+        }
+        Type::Array(arr) if name.is_none() => Some(&arr.elem),
+        Type::Slice(slice) if name.is_none() => Some(&slice.elem),
+        Type::Reference(r) => get_single_generic(&r.elem, name),
+        _ => None,
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use syn::{Type, parse_quote};
+
+    use super::get_single_generic;
+
+    #[test]
+    fn single_generic() {
+        let inner: Type = parse_quote! { u32 };
+        let full = parse_quote! { Foo<#inner> };
+        let single = get_single_generic(&full, None);
+        assert_eq!(Some(&inner), single);
+    }
+
+    #[test]
+    fn double_generic() {
+        let full: Type = parse_quote! { Foo<u32, u32> };
+        let single = get_single_generic(&full, None);
+        assert_eq!(None, single);
+    }
+
+    #[test]
+    fn array_generic() {
+        let inner: Type = parse_quote! { &str };
+        let full = parse_quote! { [#inner; 6] };
+        let single = get_single_generic(&full, None);
+        assert_eq!(Some(&inner), single);
+    }
+
+    #[test]
+    fn slice_generic() {
+        let inner: Type = parse_quote! { String };
+        let full = parse_quote! { [#inner] };
+        let single = get_single_generic(&full, None);
+        assert_eq!(Some(&inner), single);
+    }
+
+    #[test]
+    fn ref_slice_generic() {
+        let inner: Type = parse_quote! { u8 };
+        let full = parse_quote! { &[#inner] };
+        let single = get_single_generic(&full, None);
+        assert_eq!(Some(&inner), single);
+    }
+
+    #[test]
+    fn single_generic_name() {
+        let full = parse_quote! { Foo<u32> };
+        let single = get_single_generic(&full, Some("Bar"));
+        assert_eq!(None, single);
+    }
+}
 
 macro_rules! bail {
     ($span: expr => $message: literal $(, $args: expr)*$(,)?) => {
@@ -92,8 +178,6 @@ impl Attribute {
 
 pub struct BuilderField {
     pub ident: Ident,
-    #[allow(unused)]
-    pub vis: Visibility,
     pub ty: Type,
     pub attr: FieldAttr,
     pub missing_err: Option<Ident>,
@@ -101,9 +185,65 @@ pub struct BuilderField {
     pub doc: Vec<syn::Attribute>,
 }
 
+impl BuilderField {
+    fn function_ident(&self, builder_attr: &BuilderAttr) -> Ident {
+        let ident = self.attr.rename.as_ref().unwrap_or(&self.ident);
+        let prefix = if self.attr.skip_prefix {
+            ""
+        } else {
+            &builder_attr.prefix
+        };
+
+        let suffix = if self.attr.skip_suffix {
+            ""
+        } else {
+            &builder_attr.suffix
+        };
+
+        format_ident!("{}{}{}", prefix, ident, suffix, span = ident.span())
+    }
+
+    pub(crate) fn function(&self, builder_attr: &BuilderAttr) -> TokenStream {
+        let field_name = &self.ident;
+        let ident = self.attr.rename.as_ref().unwrap_or(&self.ident);
+        let ty = self
+            .attr
+            .repeat
+            .as_ref()
+            .map(|r| &r.inner_ty)
+            .unwrap_or(&self.ty);
+
+        let fn_ident = self.function_ident(builder_attr);
+        let (args, value) = self.attr.to_args_and_value(ty, field_name);
+        let doc = &self.doc;
+        let self_param = builder_attr.self_param();
+        let return_type = builder_attr.return_type();
+        let builder_vis = &builder_attr.vis;
+
+        if self.attr.repeat.is_some() {
+            let vec = &self.ident;
+            quote! {
+                #(#doc)*
+                #builder_vis fn #fn_ident(#self_param, #args) -> #return_type {
+                    self.#vec.push(#value);
+                    self
+                }
+            }
+        } else {
+            quote! {
+                #(#doc)*
+                #builder_vis fn #fn_ident(#self_param, #args) -> #return_type {
+                    self.#ident = Some(#value);
+                    self
+                }
+            }
+        }
+    }
+}
+
 pub struct Repeat {
     pub inner_ty: Type,
-    pub len: Option<(ExprRange, Ident)>,
+    pub len: Option<(Pat, Ident)>,
 }
 
 #[derive(Debug)]
@@ -176,6 +316,49 @@ pub struct FieldAttr {
 }
 
 impl FieldAttr {
+    fn to_args_and_value(&self, ty: &Type, field_name: &Ident) -> (TokenStream, TokenStream) {
+        if let Some(adapter) = &self.adapter {
+            return adapter.to_args_and_value();
+        }
+
+        if let Some(t) = &self.tuple
+            && let Type::Tuple(tuple) = ty
+        {
+            let names = t.clone().unwrap_or_else(|| {
+                (0..tuple.elems.len())
+                    .map(|n| format_ident!("{}_{}", field_name, n))
+                    .collect()
+            });
+
+            let types = tuple.elems.iter();
+
+            return if self.into {
+                (
+                    quote! {
+                        #(#names: impl ::core::convert::Into<#types>),*
+                    },
+                    quote! { (#(::core::convert::Into::into(#names)),*) },
+                )
+            } else {
+                (
+                    quote! {
+                        #(#names: #types),*
+                    },
+                    quote! { (#(#names),*) },
+                )
+            };
+        }
+
+        if self.into {
+            (
+                quote! { #field_name: impl ::core::convert::Into<#ty> },
+                quote! { ::core::convert::Into::into(#field_name) },
+            )
+        } else {
+            (quote! { #field_name: #ty }, field_name.to_token_stream())
+        }
+    }
+
     fn parse(input: syn::parse::ParseStream, field: &Field) -> syn::Result<Self> {
         let mut out = FieldAttr::default();
         let field_ident = field.ident.as_ref().unwrap();
@@ -248,10 +431,9 @@ impl FieldAttr {
                     }
 
                     let _: Token![=] = input.parse()?;
-                    let mut ident =
+                    let ident =
                         format_ident!("Range{}", field_ident.to_string().to_case(Case::Pascal));
-                    ident.set_span(ident.span());
-                    rep.len = Some((input.parse()?, ident));
+                    rep.len = Some((Pat::parse_multi(input)?, ident));
                 }
                 Attribute::Rename => {
                     if out.rename.is_some() {
@@ -390,7 +572,6 @@ impl TryFrom<&Field> for BuilderField {
 
         Ok(BuilderField {
             ident: ident.clone(),
-            vis: value.vis.clone(),
             ty: ty.clone(),
             missing_err: if attr.default.is_none() && attr.repeat.is_none() {
                 let mut ident = format_ident!("Missing{}", ident.to_string().to_case(Case::Pascal));

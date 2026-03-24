@@ -1,5 +1,7 @@
 use std::str::FromStr;
 
+use proc_macro2::TokenStream;
+use quote::quote;
 use strum::{IntoStaticStr, VariantArray};
 use syn::{
     Ident, LitStr, Token, Visibility,
@@ -15,7 +17,7 @@ macro_rules! bail {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone, Copy)]
 pub enum Kind {
     #[default]
     Owned,
@@ -93,7 +95,7 @@ impl Attribute {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct BuilderAttr {
     pub kind: Kind,
     pub prefix: String,
@@ -108,6 +110,20 @@ impl BuilderAttr {
             prefix: Default::default(),
             suffix: Default::default(),
             vis,
+        }
+    }
+
+    pub fn self_param(&self) -> TokenStream {
+        match self.kind {
+            Kind::Owned => quote! { mut self },
+            Kind::Borrowed => quote! { &mut self },
+        }
+    }
+
+    pub fn return_type(&self) -> TokenStream {
+        match self.kind {
+            Kind::Owned => quote! { Self },
+            Kind::Borrowed => quote! { &mut Self },
         }
     }
 

@@ -9,7 +9,7 @@ pub struct Foo {
     pub field_b: bool,
     #[builder(into)]
     pub field_c: String,
-    #[builder(skip_prefix, skip_suffix, rename = "add_d", repeat, repeat_n = 1..=3)]
+    #[builder(skip_prefix, skip_suffix, rename = "add_d", repeat, repeat_n = 3..)]
     pub field_d: Vec<f64>,
 }
 
