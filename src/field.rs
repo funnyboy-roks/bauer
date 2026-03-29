@@ -8,7 +8,7 @@ use syn::{
     token::Paren,
 };
 
-use crate::BuilderAttr;
+use crate::{BuilderAttr, Kind};
 
 pub(crate) fn get_single_generic<'a>(ty: &'a Type, name: Option<&str>) -> Option<&'a Type> {
     match ty {
@@ -186,6 +186,18 @@ pub struct BuilderField {
 }
 
 impl BuilderField {
+    pub fn arg_ty(&self) -> &Type {
+        self.attr
+            .repeat
+            .as_ref()
+            .map(|r| &r.inner_ty)
+            .unwrap_or(&self.ty)
+    }
+
+    pub fn optional(&self) -> bool {
+        self.wrapped_option || self.attr.default.is_some()
+    }
+
     pub fn function_ident(&self, builder_attr: &BuilderAttr) -> Ident {
         let ident = self.attr.rename.as_ref().unwrap_or(&self.ident);
         let prefix = if self.attr.skip_prefix {
@@ -206,13 +218,8 @@ impl BuilderField {
     pub(crate) fn function(&self, builder_attr: &BuilderAttr) -> TokenStream {
         let field_name = &self.ident;
         let ident = self.attr.rename.as_ref().unwrap_or(&self.ident);
-        let ty = self
-            .attr
-            .repeat
-            .as_ref()
-            .map(|r| &r.inner_ty)
-            .unwrap_or(&self.ty);
 
+        let ty = self.arg_ty();
         let fn_ident = self.function_ident(builder_attr);
         let (args, value) = self.attr.to_args_and_value(ty, field_name);
         let doc = &self.doc;
@@ -238,6 +245,51 @@ impl BuilderField {
                 }
             }
         }
+    }
+
+    pub fn parse(value: &Field, builder_attr: &BuilderAttr) -> syn::Result<Self> {
+        let ident = value.ident.as_ref().expect("We only support named fields");
+        let attr: FieldAttr = if let Some(attr) =
+            value.attrs.iter().find(|a| a.path().is_ident("builder"))
+        {
+            attr.parse_args_with(|input: ParseStream| FieldAttr::parse(input, value, builder_attr))?
+        } else {
+            FieldAttr::default()
+        };
+
+        let (ty, wrapped_option) = if let Some(ty) = get_single_generic(&value.ty, Some("Option")) {
+            (ty, true)
+        } else {
+            (&value.ty, false)
+        };
+
+        let doc: Vec<syn::Attribute> = value
+            .attrs
+            .iter()
+            .filter(|a| {
+                if let Meta::NameValue(meta) = &a.meta {
+                    meta.path.get_ident().is_some_and(|n| n == "doc")
+                } else {
+                    false
+                }
+            })
+            .cloned()
+            .collect();
+
+        Ok(BuilderField {
+            ident: ident.clone(),
+            ty: ty.clone(),
+            missing_err: if attr.default.is_none() && attr.repeat.is_none() {
+                let mut ident = format_ident!("Missing{}", ident.to_string().to_case(Case::Pascal));
+                ident.set_span(value.ident.as_ref().unwrap().span());
+                Some(ident)
+            } else {
+                None
+            },
+            attr,
+            wrapped_option,
+            doc,
+        })
     }
 }
 
@@ -357,7 +409,11 @@ impl FieldAttr {
         }
     }
 
-    fn parse(input: syn::parse::ParseStream, field: &Field) -> syn::Result<Self> {
+    fn parse(
+        input: syn::parse::ParseStream,
+        field: &Field,
+        builder_attr: &BuilderAttr,
+    ) -> syn::Result<Self> {
         let mut out = FieldAttr::default();
         let field_ident = field.ident.as_ref().unwrap();
 
@@ -428,10 +484,14 @@ impl FieldAttr {
                         bail!(ident.span() => "`repeat_n` may only be used once.");
                     }
 
+                    if builder_attr.kind == Kind::TypeState {
+                        bail!(ident.span() => "`repeat_n` may not be used on a type-state builder.");
+                    }
+
                     let _: Token![=] = input.parse()?;
-                    let ident =
+                    let err =
                         format_ident!("Range{}", field_ident.to_string().to_case(Case::Pascal));
-                    rep.len = Some((Pat::parse_multi(input)?, ident));
+                    rep.len = Some((Pat::parse_multi(input)?, err));
                 }
                 Attribute::Rename => {
                     if out.rename.is_some() {
@@ -534,53 +594,5 @@ impl FieldAttr {
         }
 
         Ok(out)
-    }
-}
-
-impl TryFrom<&Field> for BuilderField {
-    type Error = syn::Error;
-
-    fn try_from(value: &Field) -> Result<Self, Self::Error> {
-        let ident = value.ident.as_ref().expect("We only support named fields");
-        let attr: FieldAttr =
-            if let Some(builder_attr) = value.attrs.iter().find(|a| a.path().is_ident("builder")) {
-                builder_attr.parse_args_with(|input: ParseStream| FieldAttr::parse(input, value))?
-            } else {
-                FieldAttr::default()
-            };
-
-        let (ty, wrapped_option) = if let Some(ty) = get_single_generic(&value.ty, Some("Option")) {
-            (ty, true)
-        } else {
-            (&value.ty, false)
-        };
-
-        let doc: Vec<syn::Attribute> = value
-            .attrs
-            .iter()
-            .filter(|a| {
-                if let Meta::NameValue(meta) = &a.meta {
-                    meta.path.get_ident().is_some_and(|n| n == "doc")
-                } else {
-                    false
-                }
-            })
-            .cloned()
-            .collect();
-
-        Ok(BuilderField {
-            ident: ident.clone(),
-            ty: ty.clone(),
-            missing_err: if attr.default.is_none() && attr.repeat.is_none() {
-                let mut ident = format_ident!("Missing{}", ident.to_string().to_case(Case::Pascal));
-                ident.set_span(value.ident.as_ref().unwrap().span());
-                Some(ident)
-            } else {
-                None
-            },
-            attr,
-            wrapped_option,
-            doc,
-        })
     }
 }

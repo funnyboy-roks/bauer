@@ -379,7 +379,7 @@ pub fn builder(input: TokenStream) -> TokenStream {
         syn::Fields::Named(ref fields_named) => match fields_named
             .named
             .iter()
-            .map(BuilderField::try_from)
+            .map(|f| BuilderField::parse(f, &attr))
             .collect::<Result<_, _>>()
         {
             Ok(v) => v,
@@ -454,7 +454,7 @@ pub fn builder(input: TokenStream) -> TokenStream {
     let build_fields = fields_named.iter().map(|field| {
         let name = &field.ident;
 
-        if let Some(Repeat { inner_ty, len }) = &field.attr.repeat {
+        if let Some(Repeat { inner_ty, len, .. }) = &field.attr.repeat {
             if let Some((range, err)) = len {
                 quote_spanned! {
                     range.span() =>
