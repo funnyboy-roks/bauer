@@ -1,23 +1,85 @@
-//! A derive macro for automatically generating the builder pattern
+//! Bauer is a crate for automatically generating Builder-patterns for your structs!
+//!
+//! Not sure what kind of builder you want?  Bauer supports a variety of sub-patterns: Owned,
+//! Borrowed, and even Type-State!
+//!
+//! # Examples
 //!
 //! ```rust
-//! use bauer::Builder;
-//!
-//! # const _: &str = stringify!(
+//! # use bauer::Builder;
 //! #[derive(Builder)]
-//! # );
-//! # #[derive(Builder, PartialEq, Debug)]
+//! #[builder(kind = "type-state")]
 //! pub struct Foo {
-//!     bar: u32,
+//!     required_field: u32,
+//!     #[builder(default)]
+//!     default_field: u32,
+//!     #[builder(into)]
+//!     converting_field: String,
+//!     #[builder(repeat)]
+//!     repeating_field: Vec<u32>,
+//!     #[builder(repeat, repeat_n = 1..=3)]
+//!     limited_repeating_field: Vec<u32>,
 //! }
 //!
 //! let foo: Foo = Foo::builder()
-//!     .bar(42)
-//!     .build()
-//!     .unwrap();
-//!
-//! assert_eq!(foo, Foo { bar: 42, });
+//!     .required_field(42)
+//!     // .default_field(69) // defaults to 0
+//!     .converting_field("hello world") // calls `.into()` to convert from &str -> String
+//!     .repeating_field(420)
+//!     .repeating_field(1337)
+//!     .limited_repeating_field(0) // If not called 1..=3 times, this will fail
+//!     .build();
 //! ```
+//!
+//! Check out [the repository](https://github.com/funnyboy-roks/bauer/tree/main/examples) for more
+//! examples!
+//!
+//! # Configuration
+//!
+//! Builders are very configurable.  A few of the biggest features can be found below.  For a more
+//! comprehensive collection of features, look at the [`Builder`] macro.
+//!
+//! ## Kinds
+//!
+//! Bauer supports generating 3 kinds of builders:
+//!
+//! ### **Owned** (default) / **Borrowed**
+//!
+//! `"owned"` builders are passed around by value and `"borrowed"` builders are passed by mutable
+//! reference.
+//!
+//! ### **Type-State**
+//!
+//! `"type-state"` builders use the type-state pattern and generate builds that are validated at
+//! compile-time using the type system.
+//!
+//! Builder kinds can be switched between trivially using `#[builder(kind = <kind>)]` on the
+//! struct.
+//!
+//! ## Field Attributes
+//!
+//! These attributes go in `#[builder(..)]` on individual fields of the structure
+//!
+//! ### **`default`**
+//!
+//! Specify a default value for the field to have, or use [`Default::default`]
+//!
+//! ### **`repeat`**
+//!
+//! Allow any structure which supports [`FromIterator`] to be specified by calling the function
+//! multiple times.  If `repeat_n` is specified, the number of times to repeat is limited.
+//!
+//! ### **`into`**/**`tuple`**/**`adapter`**
+//!
+//! Change how the generated builder function handles input.  Can also be used with `repeat`.
+//!
+//! - `into` will make the function accepet `impl Into<T>`  
+//! - `tuple` will make the function accept each item as a separate argument
+//! - `adapter` can specify each argument and how they should be converted into the value
+//!
+//! **There are many more attributes, all can be found on the [`Builder`] macro.**
+//!
+//! [`Builder`]: https://docs.rs/bauer/latest/bauer/derive.Builder.html
 
 use proc_macro::TokenStream;
 use proc_macro2::TokenStream as TokenStream2;
@@ -35,11 +97,7 @@ mod type_state;
 
 /// The main macro.
 ///
-/// The return type of `.build()` on the builder is a Result if the build can fail due to missing
-/// fields, invalid number of repeat arguments (`repeat_n`), etc.  If a call to `.build()` can
-/// _not_ fail, it will return the built struct directly.
-///
-/// ## Usage
+/// # Usage
 ///
 /// ```
 /// use bauer::Builder;
@@ -56,7 +114,7 @@ mod type_state;
 /// }
 /// ```
 ///
-/// ## Errors
+/// # Errors
 ///
 /// When a builder can fail, the `.build` function will return an `Result` that contains the built
 /// value or a descriptive error.
@@ -74,16 +132,16 @@ mod type_state;
 /// **Other Cases**
 /// There are other cases where `.build` can fail, this list is non-exhaustive.
 ///
-/// ### Type-State Builder
+/// ## Type-State Builder
 ///
 /// If `kind` is set to `"type-state"`, then the builder will _not_ return a Result, as all build
 /// conditions are validated at compile-time.
 ///
-/// ## Builder Attributes
+/// # Builder Attributes
 ///
-/// ### **`kind`**
+/// ## **`kind`**
 ///
-/// #### Possible Values
+/// ### Possible Values
 ///
 /// **`"owned"`**  
 /// The builder functions consume and generate owned values
@@ -146,7 +204,7 @@ mod type_state;
 ///
 /// Default: `"owned"`
 ///
-/// ### **`prefix`**/**`suffix`**
+/// ## **`prefix`**/**`suffix`**
 ///
 /// Default: `prefix = "", suffix = ""`
 ///
@@ -166,7 +224,7 @@ mod type_state;
 ///     .unwrap();
 /// ```
 ///
-/// ### **`visibility`**
+/// ## **`visibility`**
 ///
 /// Default: visibility of the struct
 ///
@@ -184,9 +242,9 @@ mod type_state;
 /// }
 /// ```
 ///
-/// ## Fields Attributes
+/// # Fields Attributes
 ///
-/// ### **`default`**
+/// ## **`default`**
 ///
 /// Argument: Optional String
 ///
@@ -215,7 +273,7 @@ mod type_state;
 /// assert_eq!(foo, Foo { a: 42, b: std::f32::consts::PI });
 /// ```
 ///
-/// ### **`repeat`**
+/// ## **`repeat`**
 ///
 /// Make the method accept only a single item and build a list from it
 ///
@@ -252,7 +310,7 @@ mod type_state;
 /// );
 /// ```
 ///
-/// ### **`repeat_n`**
+/// ## **`repeat_n`**
 ///
 /// Attribute `repeat` must also be specified.
 ///
@@ -299,7 +357,7 @@ mod type_state;
 /// assert_eq!(foo, FooBuildError::RangeItems(1));
 /// ```
 ///
-/// ### **`rename`**
+/// ## **`rename`**
 ///
 /// Make the function that is generated use a different name from field itself.
 ///
@@ -321,7 +379,7 @@ mod type_state;
 /// assert_eq!(foo, Foo { items: vec![0, 1] });
 /// ```
 ///
-/// ### **`skip_prefix`**/**`skip_suffix`**
+/// ## **`skip_prefix`**/**`skip_suffix`**
 ///
 /// If a prefix or a suffix is specified in the builder attributes, skip applying those to the name
 /// of this function.  This is epecially useful with `rename`.
@@ -345,7 +403,7 @@ mod type_state;
 /// assert_eq!(foo, Foo { items: vec![0, 1] });
 /// ```
 ///
-/// ### **`into`**
+/// ## **`into`**
 ///
 /// Make the method accept anything can be turned into the field.
 ///
@@ -367,7 +425,7 @@ mod type_state;
 /// assert_eq!(foo, Foo { a: String::from("hello") });
 /// ```
 ///
-/// ### **`tuple`**
+/// ## **`tuple`**
 ///
 /// Rather than accepting a field that is a tuple by value, accept each element of the tuple as a
 /// separate parameters to the setter function.
@@ -400,7 +458,7 @@ mod type_state;
 ///     .build();
 /// ```
 ///
-/// ### **`adapter`**
+/// ## **`adapter`**
 ///
 /// Create a custom implementation for the generated function.  The adapter uses the closure syntax
 /// with types specified and will generate the method accordingly.
