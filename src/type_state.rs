@@ -504,6 +504,7 @@ pub fn type_state_builder(
     }
 
     out.extend(quote! {
+        #[allow(clippy::type_complexity)]
         #builder_vis struct #builder <#(#fields_pascal,)* #ty_generics> {
             #field_decls
             #phantom
@@ -533,7 +534,8 @@ pub fn type_state_builder(
         }
     });
 
-    for (i, f) in fields.iter().enumerate() {
+    let mut i = 0;
+    for f in fields.iter() {
         let (args, value) = f.attr.to_args_and_value(f.arg_ty(), &f.ident);
         let fn_ident = f.function_ident(builder_attr);
 
@@ -546,6 +548,7 @@ pub fn type_state_builder(
                     fn_ident.span() =>
                     impl <#(#fields_pascal,)* #impl_generics> #builder <#(#fields_pascal,)* #ty_generics> {
                         #(#doc)*
+                        #[allow(clippy::type_complexity)]
                         pub fn #fn_ident(self, #args) -> #builder <#(#fields_pascal,)* #ty_generics> {
                             let mut this = self; // rather than have `mut self` in the signature
                             this.#name.push(#value);
@@ -567,6 +570,7 @@ pub fn type_state_builder(
                     fn_ident.span() =>
                     impl <#(#fields_pascal,)* #impl_generics> #builder <#(#pascal_prefix,)* #count<#pascal>, #(#pascal_suffix,)* #ty_generics> {
                         #(#doc)*
+                        #[allow(clippy::type_complexity)]
                         pub fn #fn_ident(self, #args) -> #builder <#(#pascal_prefix,)* #count<(#pascal, ())>, #(#pascal_suffix,)* #ty_generics> {
                             let mut this = self; // rather than have `mut self` in the signature
                             this.#name.push(#value);
@@ -597,6 +601,7 @@ pub fn type_state_builder(
                     fn_ident.span() =>
                     impl <#(#impl_generics_fields,)* #impl_generics> #builder <#(#struct_generics_fields,)* #ty_generics> {
                         #(#doc)*
+                        #[allow(clippy::type_complexity)]
                         pub fn #fn_ident(self, #args) -> #builder <#(#return_struct_generics_fields,)* #ty_generics> {
                             let mut this = self; // rather than have `mut self` in the signature
                             this.#name = Some(#value);
@@ -611,6 +616,9 @@ pub fn type_state_builder(
         };
 
         out.extend(fun);
+        if f.attr.repeat.as_ref().is_none_or(|r| r.len.is_some()) {
+            i += 1;
+        }
     }
 
     out
