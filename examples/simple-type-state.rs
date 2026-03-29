@@ -9,19 +9,27 @@ pub struct Foo {
     pub field_b: bool,
     #[builder(into)]
     pub field_c: String,
-    #[builder(skip_prefix, skip_suffix, rename = "add_d", repeat)]
+    #[builder(skip_prefix, skip_suffix, rename = "add_d", repeat, repeat_n = 3..)]
     pub field_d: Vec<f64>,
+    #[builder(repeat, repeat_n = 3..=5)]
+    pub field_e: Vec<f64>,
 }
 
 fn main() {
-    let x: Foo = Foo::builder()
+    let builder = Foo::builder()
         .set_field_a(69)
         .set_field_b(true)
         .set_field_c("hello world")
         .add_d(std::f64::consts::PI)
         .add_d(std::f64::consts::TAU)
         .add_d(2.72)
-        .build();
+        .set_field_e(1.)
+        .set_field_e(2.)
+        .set_field_e(3.);
+
+    dbg!(std::any::type_name_of_val(&builder));
+
+    let x: Foo = builder.build();
 
     dbg!(x);
 }

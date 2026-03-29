@@ -379,7 +379,7 @@ pub fn builder(input: TokenStream) -> TokenStream {
         syn::Fields::Named(ref fields_named) => match fields_named
             .named
             .iter()
-            .map(|f| BuilderField::parse(f, &attr))
+            .map(BuilderField::parse)
             .collect::<Result<_, _>>()
         {
             Ok(v) => v,

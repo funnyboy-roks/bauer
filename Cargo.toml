@@ -9,6 +9,9 @@ categories = ["rust-patterns", "development-tools"]
 keywords = ["proc-macro", "builder", "derive-macro"]
 rust-version = "1.85"
 
+[features]
+unlimited_range = []
+
 [lib]
 proc-macro = true
 path = "src/lib.rs"

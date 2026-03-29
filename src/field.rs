@@ -8,7 +8,7 @@ use syn::{
     token::Paren,
 };
 
-use crate::{BuilderAttr, Kind};
+use crate::BuilderAttr;
 
 pub(crate) fn get_single_generic<'a>(ty: &'a Type, name: Option<&str>) -> Option<&'a Type> {
     match ty {
@@ -247,15 +247,14 @@ impl BuilderField {
         }
     }
 
-    pub fn parse(value: &Field, builder_attr: &BuilderAttr) -> syn::Result<Self> {
+    pub fn parse(value: &Field) -> syn::Result<Self> {
         let ident = value.ident.as_ref().expect("We only support named fields");
-        let attr: FieldAttr = if let Some(attr) =
-            value.attrs.iter().find(|a| a.path().is_ident("builder"))
-        {
-            attr.parse_args_with(|input: ParseStream| FieldAttr::parse(input, value, builder_attr))?
-        } else {
-            FieldAttr::default()
-        };
+        let attr: FieldAttr =
+            if let Some(attr) = value.attrs.iter().find(|a| a.path().is_ident("builder")) {
+                attr.parse_args_with(|input: ParseStream| FieldAttr::parse(input, value))?
+            } else {
+                FieldAttr::default()
+            };
 
         let (ty, wrapped_option) = if let Some(ty) = get_single_generic(&value.ty, Some("Option")) {
             (ty, true)
@@ -409,11 +408,7 @@ impl FieldAttr {
         }
     }
 
-    fn parse(
-        input: syn::parse::ParseStream,
-        field: &Field,
-        builder_attr: &BuilderAttr,
-    ) -> syn::Result<Self> {
+    fn parse(input: syn::parse::ParseStream, field: &Field) -> syn::Result<Self> {
         let mut out = FieldAttr::default();
         let field_ident = field.ident.as_ref().unwrap();
 
@@ -484,11 +479,8 @@ impl FieldAttr {
                         bail!(ident.span() => "`repeat_n` may only be used once.");
                     }
 
-                    if builder_attr.kind == Kind::TypeState {
-                        bail!(ident.span() => "`repeat_n` may not be used on a type-state builder.");
-                    }
-
                     let _: Token![=] = input.parse()?;
+
                     let err =
                         format_ident!("Range{}", field_ident.to_string().to_case(Case::Pascal));
                     rep.len = Some((Pat::parse_multi(input)?, err));
