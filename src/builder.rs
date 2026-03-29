@@ -34,7 +34,7 @@ impl FromStr for Kind {
             "borrowed" => Ok(Self::Borrowed),
             "type-state" => Ok(Self::TypeState),
             _ => Err(format!(
-                "Unknown kind \"{}\".  Valid kinds are: \"owned\", \"borrowed\"",
+                "Unknown kind \"{}\".  Valid kinds are: \"owned\", \"borrowed\", \"type-state\"",
                 s
             )),
         }
