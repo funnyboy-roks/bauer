@@ -1,12 +1,12 @@
 [package]
 name = "bauer"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2024"
 description = "A derive macro for automatically generating the builder pattern"
 license = "Apache-2.0"
 repository = "https://github.com/funnyboy-roks/bauer"
 categories = ["rust-patterns", "development-tools"]
-keywords = ["proc-macro", "builder", "derive-macro"]
+keywords = ["proc-macro", "builder", "derive-macro", "type-state", "type-safe"]
 rust-version = "1.85"
 
 [features]
