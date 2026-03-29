@@ -538,12 +538,14 @@ pub fn type_state_builder(
         let fn_ident = f.function_ident(builder_attr);
 
         let name = &f.ident;
+        let doc = &f.doc;
 
         let fun = match &f.attr.repeat {
             Some(Repeat { len: None, .. }) => {
                 quote_spanned! {
                     fn_ident.span() =>
                     impl <#(#fields_pascal,)* #impl_generics> #builder <#(#fields_pascal,)* #ty_generics> {
+                        #(#doc)*
                         pub fn #fn_ident(self, #args) -> #builder <#(#fields_pascal,)* #ty_generics> {
                             let mut this = self; // rather than have `mut self` in the signature
                             this.#name.push(#value);
@@ -564,6 +566,7 @@ pub fn type_state_builder(
                 quote_spanned! {
                     fn_ident.span() =>
                     impl <#(#fields_pascal,)* #impl_generics> #builder <#(#pascal_prefix,)* #count<#pascal>, #(#pascal_suffix,)* #ty_generics> {
+                        #(#doc)*
                         pub fn #fn_ident(self, #args) -> #builder <#(#pascal_prefix,)* #count<(#pascal, ())>, #(#pascal_suffix,)* #ty_generics> {
                             let mut this = self; // rather than have `mut self` in the signature
                             this.#name.push(#value);
@@ -593,6 +596,7 @@ pub fn type_state_builder(
                 quote_spanned! {
                     fn_ident.span() =>
                     impl <#(#impl_generics_fields,)* #impl_generics> #builder <#(#struct_generics_fields,)* #ty_generics> {
+                        #(#doc)*
                         pub fn #fn_ident(self, #args) -> #builder <#(#return_struct_generics_fields,)* #ty_generics> {
                             let mut this = self; // rather than have `mut self` in the signature
                             this.#name = Some(#value);

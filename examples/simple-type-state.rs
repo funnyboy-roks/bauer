@@ -11,8 +11,6 @@ pub struct Foo {
     pub field_c: String,
     #[builder(skip_prefix, skip_suffix, rename = "add_d", repeat, repeat_n = 3..)]
     pub field_d: Vec<f64>,
-    #[builder(repeat, repeat_n = 3..=5)]
-    pub field_e: Vec<f64>,
 }
 
 fn main() {
@@ -22,10 +20,7 @@ fn main() {
         .set_field_c("hello world")
         .add_d(std::f64::consts::PI)
         .add_d(std::f64::consts::TAU)
-        .add_d(2.72)
-        .set_field_e(1.)
-        .set_field_e(2.)
-        .set_field_e(3.);
+        .add_d(2.72);
 
     dbg!(std::any::type_name_of_val(&builder));
 
