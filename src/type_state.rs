@@ -307,9 +307,9 @@ pub fn type_state_builder(
     let (set_fields, unset_fields, count_fields): (Vec<_>, Vec<_>, Vec<_>) = fields_pascal
         .iter()
         .map(|name| {
-            let set = format_ident!("{}Set", name);
-            let unset = format_ident!("{}Unset", name);
-            let count = format_ident!("{}Count", name);
+            let set = format_ident!("{}{}Set", ident, name);
+            let unset = format_ident!("{}{}Unset", ident, name);
+            let count = format_ident!("{}{}Count", ident, name);
             (set, unset, count)
         })
         .collect();
