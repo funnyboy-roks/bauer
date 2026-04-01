@@ -697,6 +697,26 @@ pub fn builder(input: TokenStream) -> TokenStream {
         .iter()
         .map(|_| quote! { ::core::default::Default::default() });
 
+    let into_impl = if build_err_variants.is_empty() {
+        quote! {
+            impl #impl_generics ::core::convert::From<#builder #ty_generics> for #ident #ty_generics {
+                fn from(mut builder: #builder #ty_generics) -> Self {
+                    builder.build()
+                }
+            }
+        }
+    } else {
+        quote! {
+            impl #impl_generics ::core::convert::TryFrom<#builder #ty_generics> for #ident #ty_generics {
+                type Error = #build_err;
+
+                fn try_from(mut builder: #builder #ty_generics) -> Result<Self, Self::Error> {
+                    builder.build()
+                }
+            }
+        }
+    };
+
     quote! {
         #build_err_enum
 
@@ -725,6 +745,8 @@ pub fn builder(input: TokenStream) -> TokenStream {
                 ::core::default::Default::default()
             }
         }
+
+        #into_impl
     }
     .into()
 }

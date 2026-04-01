@@ -389,6 +389,12 @@ fn build_fn(
                 }
             }
         }
+
+        impl #impl_generics ::core::convert::From<#builder #ty_generics> for #ident #default_ty_generics #builder_where {
+            fn from(builder: #builder #ty_generics) -> Self  {
+                builder.build()
+            }
+        }
     }
 }
 
