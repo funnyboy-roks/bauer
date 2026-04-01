@@ -176,6 +176,25 @@ impl Attribute {
     }
 }
 
+pub struct FieldIdents {
+    pub pascal: Ident,
+    pub set: Ident,
+    pub unset: Ident,
+    pub count: Ident,
+}
+
+impl FieldIdents {
+    fn new(struct_name: &Ident, ident: &Ident) -> Self {
+        let pascal = Ident::new(&ident.to_string().to_case(Case::Pascal), ident.span());
+        Self {
+            set: format_ident!("{}{}Set", struct_name, pascal, span = pascal.span()),
+            unset: format_ident!("{}{}Unset", struct_name, pascal, span = pascal.span()),
+            count: format_ident!("{}{}Count", struct_name, pascal, span = pascal.span()),
+            pascal,
+        }
+    }
+}
+
 pub struct BuilderField {
     pub ident: Ident,
     pub ty: Type,
@@ -183,6 +202,7 @@ pub struct BuilderField {
     pub missing_err: Option<Ident>,
     pub wrapped_option: bool,
     pub doc: Vec<syn::Attribute>,
+    pub idents: FieldIdents,
 }
 
 impl BuilderField {
@@ -247,7 +267,7 @@ impl BuilderField {
         }
     }
 
-    pub fn parse(value: &Field) -> syn::Result<Self> {
+    pub fn parse(value: &Field, struct_name: &Ident) -> syn::Result<Self> {
         let ident = value.ident.as_ref().expect("We only support named fields");
         let attr: FieldAttr =
             if let Some(attr) = value.attrs.iter().find(|a| a.path().is_ident("builder")) {
@@ -288,6 +308,7 @@ impl BuilderField {
             attr,
             wrapped_option,
             doc,
+            idents: FieldIdents::new(struct_name, ident),
         })
     }
 }

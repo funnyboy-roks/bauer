@@ -94,6 +94,7 @@ use crate::{
 mod builder;
 mod field;
 mod type_state;
+mod util;
 
 /// The main macro.
 ///
@@ -523,7 +524,7 @@ pub fn builder(input: TokenStream) -> TokenStream {
         syn::Fields::Named(ref fields_named) => match fields_named
             .named
             .iter()
-            .map(BuilderField::parse)
+            .map(|f| BuilderField::parse(f, ident))
             .collect::<Result<_, _>>()
         {
             Ok(v) => v,
@@ -692,7 +693,7 @@ pub fn builder(input: TokenStream) -> TokenStream {
     quote! {
         #build_err_enum
 
-        #builder_vis struct #builder #ty_generics {
+        #builder_vis struct #builder #impl_generics {
             #fields
         }
 

@@ -1,14 +1,20 @@
 use std::{
-    collections::{HashMap, HashSet, VecDeque, hash_map::Entry},
+    collections::{HashMap, HashSet, hash_map::Entry},
     ops::Range,
 };
 
-use convert_case::{Case, Casing};
 use proc_macro2::{Span, TokenStream};
 use quote::{ToTokens, format_ident, quote, quote_spanned};
-use syn::{DeriveInput, Ident, Token, spanned::Spanned};
+use syn::{DeriveInput, Ident, Token, Type, TypePath, parse_quote, spanned::Spanned};
 
-use crate::{BuilderAttr, BuilderField, Repeat};
+use crate::{
+    BuilderAttr, BuilderField, Repeat,
+    field::FieldIdents,
+    type_state::generics::{CustomImplGenerics, CustomTypeGenerics},
+    util::ReplaceTrait,
+};
+
+mod generics;
 
 macro_rules! bail {
     ($span: expr => $message: literal $(, $args: expr)*$(,)?) => {
@@ -16,20 +22,6 @@ macro_rules! bail {
             $span,
             format!($message, $($args),*),
         ))
-    }
-}
-
-fn trim_angle_brackets(tokens: impl ToTokens) -> TokenStream {
-    let mut tokens = tokens
-        .to_token_stream()
-        .into_iter()
-        .collect::<VecDeque<_>>();
-    if tokens.is_empty() {
-        quote! {}
-    } else {
-        tokens.pop_front();
-        tokens.pop_back();
-        tokens.into_iter().collect()
     }
 }
 
@@ -283,130 +275,16 @@ impl<'a> TryFrom<&'a syn::Pat> for Len<'a> {
     }
 }
 
-pub fn type_state_builder(
+fn build_fn(
+    builder: &Ident,
     builder_attr: &BuilderAttr,
-    input: &DeriveInput,
     fields: &[BuilderField],
+    generic_fields: &[&BuilderField],
+    len_structs: &HashMap<usize, Ident>,
+    input: &DeriveInput,
 ) -> TokenStream {
     let ident = &input.ident;
-    let builder = format_ident!("{}Builder", ident);
     let builder_vis = &builder_attr.vis;
-
-    let generic_fields: Vec<_> = fields
-        .iter()
-        .filter(|f| f.attr.repeat.as_ref().is_none_or(|r| r.len.is_some()))
-        .collect();
-
-    let mut out = TokenStream::new();
-
-    let fields_pascal: Vec<_> = generic_fields
-        .iter()
-        .map(|f| Ident::new(&f.ident.to_string().to_case(Case::Pascal), f.ident.span()))
-        .collect();
-
-    let (set_fields, unset_fields, count_fields): (Vec<_>, Vec<_>, Vec<_>) = fields_pascal
-        .iter()
-        .map(|name| {
-            let set = format_ident!("{}{}Set", ident, name);
-            let unset = format_ident!("{}{}Unset", ident, name);
-            let count = format_ident!("{}{}Count", ident, name);
-            (set, unset, count)
-        })
-        .collect();
-
-    out.extend(
-        generic_fields
-            .iter()
-            .zip(set_fields.iter())
-            .zip(unset_fields.iter())
-            .zip(count_fields.iter())
-            .map(|(((&f, set), unset), count)| {
-                if f.attr.repeat.as_ref().is_some_and(|r| r.len.is_some()) {
-                    quote! {
-                        #[doc(hidden)]
-                        #[non_exhaustive]
-                        struct #count<T>(T); // never constructed, so doesn't really need to be PhantomData
-                    }
-                } else {
-                    quote! {
-                        #[doc(hidden)]
-                        #[non_exhaustive]
-                        struct #set;
-                        #[doc(hidden)]
-                        #[non_exhaustive]
-                        struct #unset;
-                    }
-                }
-            }),
-    );
-
-    let mut len_structs = HashMap::new();
-
-    let mut len_traits = HashMap::<Len, Ident>::new();
-
-    for (i, &f) in generic_fields.iter().enumerate() {
-        let Some(repeat) = &f.attr.repeat else {
-            continue;
-        };
-        let Some((len_pat, _)) = &repeat.len else {
-            continue;
-        };
-
-        let len = match Len::try_from(len_pat) {
-            Ok(v) => v,
-            Err(e) => return e.to_compile_error(),
-        };
-
-        let ident = match len_traits.entry(len) {
-            Entry::Occupied(entry) => entry.get().clone(),
-            Entry::Vacant(entry) => {
-                let ident = match len.into_trait(&mut out) {
-                    Ok(i) => i,
-                    Err(e) => return e.to_compile_error(),
-                };
-                entry.insert(ident.clone());
-                ident
-            }
-        };
-        len_structs.insert(i, ident);
-    }
-
-    let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
-    let impl_generics = trim_angle_brackets(impl_generics);
-    let ty_generics = trim_angle_brackets(ty_generics);
-
-    let field_decls: TokenStream = fields
-        .iter()
-        .map(|f| {
-            let ident = &f.ident;
-            if let Some(Repeat { inner_ty, .. }) = &f.attr.repeat {
-                quote! {
-                    #ident: ::std::vec::Vec<#inner_ty>,
-                }
-            } else {
-                let ty = &f.ty;
-                quote! {
-                    #ident: ::core::option::Option<#ty>,
-                }
-            }
-        })
-        .collect();
-
-    let field_names: Vec<_> = fields.iter().map(|f| &f.ident).collect();
-
-    let mut state = "_state".to_string();
-    let names_set = field_names
-        .iter()
-        .map(|i| i.to_string())
-        .collect::<HashSet<_>>();
-    while names_set.contains(&*state) {
-        state = format!("_{}", state);
-    }
-    let state = Ident::new(&state, Span::call_site());
-
-    let phantom = quote! {
-        #state: ::core::marker::PhantomData<(#(#fields_pascal,)*)>
-    };
 
     let build_fields = fields.iter().map(|field| {
         let name = &field.ident;
@@ -446,46 +324,38 @@ pub fn type_state_builder(
         }
     });
 
-    let build_impl_generics = fields
-        .iter()
-        .enumerate()
-        .zip(fields_pascal.iter())
-        .filter_map(|((i, f), name)| {
-            if f.optional() || len_structs.contains_key(&i) {
-                Some(name)
-            } else {
-                None
-            }
-        });
+    let build_impl_generics = generic_fields.iter().enumerate().filter_map(|(i, f)| {
+        if f.optional() || len_structs.contains_key(&i) {
+            Some(&f.idents.pascal)
+        } else {
+            None
+        }
+    });
 
-    let build_generics = fields
-        .iter()
-        .enumerate()
-        .zip(fields_pascal.iter())
-        .zip(set_fields.iter())
-        .zip(count_fields.iter())
-        .map(|((((i, f), pascal), set), count)| {
-            if len_structs.contains_key(&i) {
-                quote! { #count<#pascal> }
-            } else if f.optional() {
-                pascal.to_token_stream()
-            } else {
-                set.to_token_stream()
-            }
-        });
+    let build_generics = generic_fields.iter().enumerate().map(|(i, f)| {
+        let FieldIdents {
+            count, pascal, set, ..
+        } = &f.idents;
+        if len_structs.contains_key(&i) {
+            let ty: Type = parse_quote! { #count<#pascal> };
+            ty
+        } else if f.optional() {
+            Type::from(TypePath {
+                qself: None,
+                path: pascal.clone().into(),
+            })
+        } else {
+            Type::from(TypePath {
+                qself: None,
+                path: set.clone().into(),
+            })
+        }
+    });
 
-    let new_generics: Vec<_> = generic_fields
-        .iter()
-        .zip(unset_fields.iter())
-        .zip(count_fields.iter())
-        .map(|((f, unset), count)| {
-            if f.attr.repeat.as_ref().is_some_and(|f| f.len.is_some()) {
-                quote! { #count<()> }
-            } else {
-                unset.to_token_stream()
-            }
-        })
-        .collect();
+    let impl_generics = CustomImplGenerics::new(&input.generics, build_impl_generics);
+    let ty_generics = CustomTypeGenerics::new(&input.generics, build_generics);
+
+    let (_, _, where_clause) = input.generics.split_for_impl();
 
     let mut builder_where = where_clause.to_token_stream();
     if let Some(where_clause) = where_clause {
@@ -496,27 +366,161 @@ pub fn type_state_builder(
         <Token![where]>::default().to_tokens(&mut builder_where);
     }
 
-    for (&i, len) in &len_structs {
-        let generic = &fields_pascal[i];
+    for (&i, len) in len_structs {
+        let generic = &generic_fields[i].idents.pascal;
         builder_where.extend(quote! {
             #generic: #len,
         });
     }
 
+    let (_, default_ty_generics, _) = input.generics.split_for_impl();
+
+    quote! {
+        impl #impl_generics #builder #ty_generics #builder_where {
+            #builder_vis fn build(self) -> #ident #default_ty_generics  {
+                #ident {
+                    #(#build_fields),*
+                }
+            }
+        }
+    }
+}
+
+pub fn type_state_builder(
+    builder_attr: &BuilderAttr,
+    input: &DeriveInput,
+    fields: &[BuilderField],
+) -> TokenStream {
+    let ident = &input.ident;
+    let builder = format_ident!("{}Builder", ident);
+    let builder_vis = &builder_attr.vis;
+
+    let generic_fields: Vec<_> = fields
+        .iter()
+        .filter(|f| f.attr.repeat.as_ref().is_none_or(|r| r.len.is_some()))
+        .collect();
+
+    let mut out = TokenStream::new();
+
+    out.extend(generic_fields.iter().map(|&f| {
+        let FieldIdents {
+            count, set, unset, ..
+        } = &f.idents;
+        if f.attr.repeat.as_ref().is_some_and(|r| r.len.is_some()) {
+            quote! {
+                #[doc(hidden)]
+                #[non_exhaustive]
+                struct #count<T>(T); // never constructed, so doesn't really need to be PhantomData
+            }
+        } else {
+            quote! {
+                #[doc(hidden)]
+                #[non_exhaustive]
+                struct #set;
+                #[doc(hidden)]
+                #[non_exhaustive]
+                struct #unset;
+            }
+        }
+    }));
+
+    let mut len_structs = HashMap::new();
+
+    let mut len_traits = HashMap::<Len, Ident>::new();
+
+    for (i, &f) in generic_fields.iter().enumerate() {
+        let Some(repeat) = &f.attr.repeat else {
+            continue;
+        };
+        let Some((len_pat, _)) = &repeat.len else {
+            continue;
+        };
+
+        let len = match Len::try_from(len_pat) {
+            Ok(v) => v,
+            Err(e) => return e.to_compile_error(),
+        };
+
+        let ident = match len_traits.entry(len) {
+            Entry::Occupied(entry) => entry.get().clone(),
+            Entry::Vacant(entry) => {
+                let ident = match len.into_trait(&mut out) {
+                    Ok(i) => i,
+                    Err(e) => return e.to_compile_error(),
+                };
+                entry.insert(ident.clone());
+                ident
+            }
+        };
+        len_structs.insert(i, ident);
+    }
+
+    let (default_impl_generics, default_ty_generics, where_clause) =
+        input.generics.split_for_impl();
+
+    let field_decls: TokenStream = fields
+        .iter()
+        .map(|f| {
+            let ident = &f.ident;
+            if let Some(Repeat { inner_ty, .. }) = &f.attr.repeat {
+                quote! {
+                    #ident: ::std::vec::Vec<#inner_ty>,
+                }
+            } else {
+                let ty = &f.ty;
+                quote! {
+                    #ident: ::core::option::Option<#ty>,
+                }
+            }
+        })
+        .collect();
+
+    let field_names: Vec<_> = fields.iter().map(|f| &f.ident).collect();
+
+    let mut state = "_state".to_string();
+    let names_set = field_names
+        .iter()
+        .map(|i| i.to_string())
+        .collect::<HashSet<_>>();
+    while names_set.contains(&*state) {
+        state = format!("_{}", state);
+    }
+    let state = Ident::new(&state, Span::call_site());
+
+    let phantom_generics = generic_fields.iter().map(|f| &f.idents.pascal);
+    let phantom = quote! {
+        #state: ::core::marker::PhantomData<(#(#phantom_generics,)*)>
+    };
+
+    let new_generics = generic_fields.iter().map(|f| {
+        let FieldIdents { count, unset, .. } = &f.idents;
+        if f.attr.repeat.as_ref().is_some_and(|f| f.len.is_some()) {
+            quote! { #count<()> }
+        } else {
+            unset.to_token_stream()
+        }
+    });
+
+    let struct_generics = CustomImplGenerics::new(
+        &input.generics,
+        generic_fields.iter().map(|f| &f.idents.pascal),
+    );
+    let new_generics = CustomTypeGenerics::new(&input.generics, new_generics);
+
     out.extend(quote! {
         #[allow(clippy::type_complexity)]
-        #builder_vis struct #builder <#(#fields_pascal,)* #ty_generics> {
+        #builder_vis struct #builder #struct_generics {
             #field_decls
             #phantom
         }
 
-        impl <#impl_generics> #ident <#ty_generics> {
-            #builder_vis fn builder() -> #builder<#(#new_generics,)* #ty_generics> {
+        impl #default_impl_generics #ident #default_ty_generics #where_clause {
+            #builder_vis fn builder() -> #builder #new_generics {
                 #builder::new()
             }
         }
 
-        impl <#impl_generics> #builder<#(#new_generics,)* #ty_generics> #where_clause {
+        impl #default_impl_generics #builder #new_generics #where_clause {
             #builder_vis fn new() -> Self {
                 Self {
                     #(#field_names: ::core::default::Default::default(),)*
@@ -524,15 +528,17 @@ pub fn type_state_builder(
                 }
             }
         }
-
-        impl <#(#build_impl_generics,)* #impl_generics> #builder<#(#build_generics,)* #ty_generics> #builder_where {
-            #builder_vis fn build(self) -> #ident<#ty_generics> {
-                #ident {
-                    #(#build_fields),*
-                }
-            }
-        }
     });
+
+    // add `fn build()`
+    out.extend(build_fn(
+        &builder,
+        builder_attr,
+        fields,
+        &generic_fields,
+        &len_structs,
+        input,
+    ));
 
     let mut i = 0;
     for f in fields.iter() {
@@ -544,12 +550,20 @@ pub fn type_state_builder(
 
         let fun = match &f.attr.repeat {
             Some(Repeat { len: None, .. }) => {
+                let impl_generics = CustomImplGenerics::new(
+                    &input.generics,
+                    generic_fields.iter().map(|f| &f.idents.pascal),
+                );
+                let ty_generics = CustomTypeGenerics::new(
+                    &input.generics,
+                    generic_fields.iter().map(|f| &f.idents.pascal),
+                );
                 quote_spanned! {
                     fn_ident.span() =>
-                    impl <#(#fields_pascal,)* #impl_generics> #builder <#(#fields_pascal,)* #ty_generics> {
+                    impl #impl_generics #builder #ty_generics #where_clause {
                         #(#doc)*
                         #[allow(clippy::type_complexity)]
-                        pub fn #fn_ident(self, #args) -> #builder <#(#fields_pascal,)* #ty_generics> {
+                        pub fn #fn_ident(self, #args) -> #builder #ty_generics {
                             let mut this = self; // rather than have `mut self` in the signature
                             this.#name.push(#value);
                             #builder {
@@ -561,17 +575,42 @@ pub fn type_state_builder(
                 }
             }
             Some(Repeat { len: Some(_), .. }) => {
-                let pascal_prefix = &fields_pascal[..i];
-                let pascal_suffix = &fields_pascal[(i + 1)..];
-                let pascal = &fields_pascal[i];
-                let count = &count_fields[i];
+                let FieldIdents { count, pascal, .. } = &generic_fields[i].idents;
+
+                fn ident_to_type(ident: Ident) -> Type {
+                    TypePath {
+                        qself: None,
+                        path: ident.into(),
+                    }
+                    .into()
+                }
+
+                let impl_generics = CustomImplGenerics::new(
+                    &input.generics,
+                    generic_fields.iter().map(|f| &f.idents.pascal),
+                );
+                let ty_generics = CustomTypeGenerics::new(
+                    &input.generics,
+                    generic_fields
+                        .iter()
+                        .map(|f| ident_to_type(f.idents.pascal.clone()))
+                        .replace(i, parse_quote! { #count<#pascal> }),
+                );
+
+                let ret_ty_generics = CustomTypeGenerics::new(
+                    &input.generics,
+                    generic_fields
+                        .iter()
+                        .map(|f| ident_to_type(f.idents.pascal.clone()))
+                        .replace(i, parse_quote! { #count<(#pascal, ())> }),
+                );
 
                 quote_spanned! {
                     fn_ident.span() =>
-                    impl <#(#fields_pascal,)* #impl_generics> #builder <#(#pascal_prefix,)* #count<#pascal>, #(#pascal_suffix,)* #ty_generics> {
+                    impl #impl_generics #builder #ty_generics #where_clause {
                         #(#doc)*
                         #[allow(clippy::type_complexity)]
-                        pub fn #fn_ident(self, #args) -> #builder <#(#pascal_prefix,)* #count<(#pascal, ())>, #(#pascal_suffix,)* #ty_generics> {
+                        pub fn #fn_ident(self, #args) -> #builder #ret_ty_generics {
                             let mut this = self; // rather than have `mut self` in the signature
                             this.#name.push(#value);
                             #builder {
@@ -583,26 +622,36 @@ pub fn type_state_builder(
                 }
             }
             None => {
-                let impl_generics_fields = fields_pascal[..i]
-                    .iter()
-                    .chain(fields_pascal.iter().skip(i + 1));
+                let impl_generics_fields = CustomImplGenerics::new(
+                    &input.generics,
+                    generic_fields[..i]
+                        .iter()
+                        .chain(generic_fields.iter().skip(i + 1))
+                        .map(|f| &f.idents.pascal),
+                );
 
-                let struct_generics_fields = fields_pascal[..i]
-                    .iter()
-                    .chain(std::iter::once(&unset_fields[i]))
-                    .chain(fields_pascal.iter().skip(i + 1));
+                let struct_generics_fields = CustomTypeGenerics::new(
+                    &input.generics,
+                    generic_fields
+                        .iter()
+                        .map(|f| &f.idents.pascal)
+                        .replace(i, &generic_fields[i].idents.unset),
+                );
 
-                let return_struct_generics_fields = fields_pascal[..i]
-                    .iter()
-                    .chain(std::iter::once(&set_fields[i]))
-                    .chain(fields_pascal.iter().skip(i + 1));
+                let return_struct_generics_fields = CustomTypeGenerics::new(
+                    &input.generics,
+                    generic_fields
+                        .iter()
+                        .map(|f| &f.idents.pascal)
+                        .replace(i, &generic_fields[i].idents.set),
+                );
 
                 quote_spanned! {
                     fn_ident.span() =>
-                    impl <#(#impl_generics_fields,)* #impl_generics> #builder <#(#struct_generics_fields,)* #ty_generics> {
+                    impl #impl_generics_fields #builder #struct_generics_fields #where_clause {
                         #(#doc)*
                         #[allow(clippy::type_complexity)]
-                        pub fn #fn_ident(self, #args) -> #builder <#(#return_struct_generics_fields,)* #ty_generics> {
+                        pub fn #fn_ident(self, #args) -> #builder #return_struct_generics_fields {
                             let mut this = self; // rather than have `mut self` in the signature
                             this.#name = Some(#value);
                             #builder {
