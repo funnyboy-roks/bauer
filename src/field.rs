@@ -203,9 +203,17 @@ pub struct BuilderField {
     pub wrapped_option: bool,
     pub doc: Vec<syn::Attribute>,
     pub idents: FieldIdents,
+    pub index: usize,
 }
 
 impl BuilderField {
+    pub fn tuple_index(&self) -> syn::Index {
+        syn::Index {
+            index: self.index as _,
+            span: self.ident.span(),
+        }
+    }
+
     pub fn arg_ty(&self) -> &Type {
         self.attr
             .repeat
@@ -235,9 +243,8 @@ impl BuilderField {
         format_ident!("{}{}{}", prefix, ident, suffix, span = ident.span())
     }
 
-    pub(crate) fn function(&self, builder_attr: &BuilderAttr) -> TokenStream {
+    pub(crate) fn function(&self, builder_attr: &BuilderAttr, inner: &Ident) -> TokenStream {
         let field_name = &self.ident;
-        let ident = self.attr.rename.as_ref().unwrap_or(&self.ident);
 
         let ty = self.arg_ty();
         let fn_ident = self.function_ident(builder_attr);
@@ -247,27 +254,34 @@ impl BuilderField {
         let return_type = builder_attr.return_type();
         let builder_vis = &builder_attr.vis;
 
+        let field_i = self.tuple_index();
+
         if self.attr.repeat.is_some() {
-            let vec = &self.ident;
             quote! {
                 #(#doc)*
                 #builder_vis fn #fn_ident(#self_param, #args) -> #return_type {
-                    self.#vec.push(#value);
-                    self
+                    #[allow(deprecated)] // #inner is set to deprecated
+                    {
+                        self.#inner.#field_i.push(#value);
+                        self
+                    }
                 }
             }
         } else {
             quote! {
                 #(#doc)*
                 #builder_vis fn #fn_ident(#self_param, #args) -> #return_type {
-                    self.#ident = Some(#value);
-                    self
+                    #[allow(deprecated)] // #inner is set to deprecated
+                    {
+                        self.#inner.#field_i = Some(#value);
+                        self
+                    }
                 }
             }
         }
     }
 
-    pub fn parse(value: &Field, struct_name: &Ident) -> syn::Result<Self> {
+    pub fn parse(value: &Field, struct_name: &Ident, index: usize) -> syn::Result<Self> {
         let ident = value.ident.as_ref().expect("We only support named fields");
         let attr: FieldAttr =
             if let Some(attr) = value.attrs.iter().find(|a| a.path().is_ident("builder")) {
@@ -309,6 +323,7 @@ impl BuilderField {
             wrapped_option,
             doc,
             idents: FieldIdents::new(struct_name, ident),
+            index,
         })
     }
 }

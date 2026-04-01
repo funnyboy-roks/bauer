@@ -1,9 +1,9 @@
 use std::{
-    collections::{HashMap, HashSet, hash_map::Entry},
+    collections::{HashMap, hash_map::Entry},
     ops::Range,
 };
 
-use proc_macro2::{Span, TokenStream};
+use proc_macro2::TokenStream;
 use quote::{ToTokens, format_ident, quote, quote_spanned};
 use syn::{DeriveInput, Ident, Token, Type, TypePath, parse_quote, spanned::Spanned};
 
@@ -282,44 +282,46 @@ fn build_fn(
     generic_fields: &[&BuilderField],
     len_structs: &HashMap<usize, Ident>,
     input: &DeriveInput,
+    inner: &Ident,
 ) -> TokenStream {
     let ident = &input.ident;
     let builder_vis = &builder_attr.vis;
 
     let build_fields = fields.iter().map(|field| {
         let name = &field.ident;
+        let field_i = field.tuple_index();
 
         if let Some(Repeat { inner_ty, .. }) = &field.attr.repeat {
             quote_spanned! {
                 inner_ty.span() =>
                 // using associated function syntax as that gives better error messages
                 // (i.e., not "call chain may not have expected associated type"
-                #name: ::std::iter::FromIterator::from_iter(self.#name.into_iter())
+                #name: ::std::iter::FromIterator::from_iter(inner.#field_i.into_iter())
             }
         } else if field.wrapped_option {
             quote! {
-                #name: self.#name
+                #name: inner.#field_i
             }
         } else if let Some(default) = &field.attr.default {
             if let Some(default) = default {
                 if field.attr.into {
                     quote! {
-                        #name: self.#name.unwrap_or_else(|| #default.into())
+                        #name: inner.#field_i.unwrap_or_else(|| #default.into())
                     }
                 } else {
                     quote! {
-                        #name: self.#name.unwrap_or_else(|| #default)
+                        #name: inner.#field_i.unwrap_or_else(|| #default)
                     }
                 }
             } else {
                 quote_spanned! {
                     field.ty.span() =>
-                    #name: self.#name.unwrap_or_default()
+                    #name: inner.#field_i.unwrap_or_default()
                 }
             }
         } else {
             quote! {
-                #name: self.#name.unwrap()
+                #name: inner.#field_i.unwrap()
             }
         }
     });
@@ -378,8 +380,12 @@ fn build_fn(
     quote! {
         impl #impl_generics #builder #ty_generics #builder_where {
             #builder_vis fn build(self) -> #ident #default_ty_generics  {
-                #ident {
-                    #(#build_fields),*
+                #[allow(deprecated)] // #inner is set to deprecated
+                {
+                    let inner = self.#inner;
+                    #ident {
+                        #(#build_fields),*
+                    }
                 }
             }
         }
@@ -458,34 +464,17 @@ pub fn type_state_builder(
     let (default_impl_generics, default_ty_generics, where_clause) =
         input.generics.split_for_impl();
 
-    let field_decls: TokenStream = fields
-        .iter()
-        .map(|f| {
-            let ident = &f.ident;
-            if let Some(Repeat { inner_ty, .. }) = &f.attr.repeat {
-                quote! {
-                    #ident: ::std::vec::Vec<#inner_ty>,
-                }
-            } else {
-                let ty = &f.ty;
-                quote! {
-                    #ident: ::core::option::Option<#ty>,
-                }
-            }
-        })
-        .collect();
+    let field_decls = fields.iter().map(|f| {
+        if let Some(Repeat { inner_ty, .. }) = &f.attr.repeat {
+            quote! { ::std::vec::Vec<#inner_ty> }
+        } else {
+            let ty = &f.ty;
+            quote! { ::core::option::Option<#ty> }
+        }
+    });
 
-    let field_names: Vec<_> = fields.iter().map(|f| &f.ident).collect();
-
-    let mut state = "_state".to_string();
-    let names_set = field_names
-        .iter()
-        .map(|i| i.to_string())
-        .collect::<HashSet<_>>();
-    while names_set.contains(&*state) {
-        state = format!("_{}", state);
-    }
-    let state = Ident::new(&state, Span::call_site());
+    let inner = format_ident!("__unsafe_builder_content");
+    let state = format_ident!("__unsafe_builder_state");
 
     let phantom_generics = generic_fields.iter().map(|f| &f.idents.pascal);
     let phantom = quote! {
@@ -507,10 +496,18 @@ pub fn type_state_builder(
     );
     let new_generics = CustomTypeGenerics::new(&input.generics, new_generics);
 
+    let init = fields
+        .iter()
+        .map(|_| quote! { ::core::default::Default::default() });
+
     out.extend(quote! {
         #[allow(clippy::type_complexity)]
         #builder_vis struct #builder #struct_generics {
-            #field_decls
+            #[deprecated = "This field is for internal use only; You almost certainly don't need to touch this. If you encounter a bug or missing feature, file an issue on the repo."]
+            #[doc(hidden)]
+            #inner: (#(#field_decls,)*),
+            #[deprecated = "This field is for internal use only; You almost certainly don't need to touch this. If you encounter a bug or missing feature, file an issue on the repo."]
+            #[doc(hidden)]
             #phantom
         }
 
@@ -523,7 +520,7 @@ pub fn type_state_builder(
         impl #default_impl_generics #builder #new_generics #where_clause {
             #builder_vis fn new() -> Self {
                 Self {
-                    #(#field_names: ::core::default::Default::default(),)*
+                    #inner: (#(#init,)*),
                     #state: ::core::marker::PhantomData,
                 }
             }
@@ -538,16 +535,17 @@ pub fn type_state_builder(
         &generic_fields,
         &len_structs,
         input,
+        &inner,
     ));
 
     let mut i = 0;
-    for f in fields.iter() {
+    for f in fields {
         let (args, value) = f.attr.to_args_and_value(f.arg_ty(), &f.ident);
         let fn_ident = f.function_ident(builder_attr);
 
-        let name = &f.ident;
         let doc = &f.doc;
 
+        let field_i = f.tuple_index();
         let fun = match &f.attr.repeat {
             Some(Repeat { len: None, .. }) => {
                 let impl_generics = CustomImplGenerics::new(
@@ -565,10 +563,13 @@ pub fn type_state_builder(
                         #[allow(clippy::type_complexity)]
                         pub fn #fn_ident(self, #args) -> #builder #ty_generics {
                             let mut this = self; // rather than have `mut self` in the signature
-                            this.#name.push(#value);
-                            #builder {
-                                #(#field_names: this.#field_names,)*
-                                #state: ::core::marker::PhantomData,
+                            #[allow(deprecated)] // #inner is set to deprecated
+                            {
+                                this.#inner.#field_i.push(#value);
+                                #builder {
+                                    #inner: this.#inner,
+                                    #state: ::core::marker::PhantomData,
+                                }
                             }
                         }
                     }
@@ -612,10 +613,13 @@ pub fn type_state_builder(
                         #[allow(clippy::type_complexity)]
                         pub fn #fn_ident(self, #args) -> #builder #ret_ty_generics {
                             let mut this = self; // rather than have `mut self` in the signature
-                            this.#name.push(#value);
-                            #builder {
-                                #(#field_names: this.#field_names,)*
-                                #state: ::core::marker::PhantomData,
+                            #[allow(deprecated)] // #inner is set to deprecated
+                            {
+                                this.#inner.#field_i.push(#value);
+                                #builder {
+                                    #inner: this.#inner,
+                                    #state: ::core::marker::PhantomData,
+                                }
                             }
                         }
                     }
@@ -653,10 +657,13 @@ pub fn type_state_builder(
                         #[allow(clippy::type_complexity)]
                         pub fn #fn_ident(self, #args) -> #builder #return_struct_generics_fields {
                             let mut this = self; // rather than have `mut self` in the signature
-                            this.#name = Some(#value);
-                            #builder {
-                                #(#field_names: this.#field_names,)*
-                                #state: ::core::marker::PhantomData,
+                            #[allow(deprecated)] // #inner is set to deprecated
+                            {
+                                this.#inner.#field_i = Some(#value);
+                                #builder {
+                                    #inner: this.#inner,
+                                    #state: ::core::marker::PhantomData,
+                                }
                             }
                         }
                     }

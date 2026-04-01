@@ -520,11 +520,14 @@ pub fn builder(input: TokenStream) -> TokenStream {
 
     let builder = format_ident!("{}Builder", ident);
     let build_err = format_ident!("{}BuildError", ident);
+    let inner = format_ident!("__unsafe_builder_content");
+
     let fields_named: Vec<_> = match data_struct.fields {
         syn::Fields::Named(ref fields_named) => match fields_named
             .named
             .iter()
-            .map(|f| BuilderField::parse(f, ident))
+            .enumerate()
+            .map(|(index, f)| BuilderField::parse(f, ident, index))
             .collect::<Result<_, _>>()
         {
             Ok(v) => v,
@@ -542,28 +545,23 @@ pub fn builder(input: TokenStream) -> TokenStream {
         }
     };
 
-    let fields: TokenStream2 = fields_named
-        .iter()
-        .map(|f| {
-            let ident = &f.ident;
-            if let Some(Repeat { inner_ty, .. }) = &f.attr.repeat {
-                quote! {
-                    #ident: ::std::vec::Vec<#inner_ty>,
-                }
-            } else {
-                let ty = &f.ty;
-                quote! {
-                    #ident: ::core::option::Option<#ty>,
-                }
-            }
-        })
-        .collect();
+    let fields = fields_named.iter().map(|f| {
+        if let Some(Repeat { inner_ty, .. }) = &f.attr.repeat {
+            quote! { ::std::vec::Vec<#inner_ty> }
+        } else {
+            let ty = &f.ty;
+            quote! { ::core::option::Option<#ty> }
+        }
+    });
 
     if attr.kind == Kind::TypeState {
         return type_state::type_state_builder(&attr, &input, &fields_named).into();
     }
 
-    let functions: TokenStream2 = fields_named.iter().map(|f| f.function(&attr)).collect();
+    let functions: TokenStream2 = fields_named
+        .iter()
+        .map(|f| f.function(&attr, &inner))
+        .collect();
 
     let (build_err_variants, build_err_messages): (Vec<_>, Vec<_>) = fields_named
         .iter()
@@ -594,17 +592,16 @@ pub fn builder(input: TokenStream) -> TokenStream {
         })
         .collect();
 
-    let field_names: Vec<_> = fields_named.iter().map(|f| &f.ident).collect();
-
     let build_fields = fields_named.iter().map(|field| {
         let name = &field.ident;
+        let field_i = field.tuple_index();
 
         if let Some(Repeat { inner_ty, len, .. }) = &field.attr.repeat {
             if let Some((range, err)) = len {
                 quote_spanned! {
                     range.span() =>
-                    #name: match self.#name.len() {
-                        #range => self.#name.drain(..).collect(),
+                    #name: match self.#inner.#field_i.len() {
+                        #range => self.#inner.#field_i.drain(..).collect(),
                         len => return Err(#build_err::#err(len)),
                     }
                 }
@@ -613,28 +610,28 @@ pub fn builder(input: TokenStream) -> TokenStream {
                     inner_ty.span() =>
                     // using associated function syntax as that gives better error messages
                     // (i.e., not "call chain may not have expected associated type"
-                    #name: ::std::iter::FromIterator::from_iter(self.#name.drain(..))
+                    #name: ::std::iter::FromIterator::from_iter(self.#inner.#field_i.drain(..))
                 }
             }
         } else if field.wrapped_option {
             quote! {
-                #name: self.#name
+                #name: self.#inner.#field_i
             }
         } else if let Some(default) = &field.attr.default {
             if let Some(default) = default {
                 if field.attr.into {
                     quote! {
-                        #name: self.#name.take().unwrap_or_else(|| #default.into())
+                        #name: self.#inner.#field_i.take().unwrap_or_else(|| #default.into())
                     }
                 } else {
                     quote! {
-                        #name: self.#name.take().unwrap_or_else(|| #default)
+                        #name: self.#inner.#field_i.take().unwrap_or_else(|| #default)
                     }
                 }
             } else {
                 quote_spanned! {
                     field.ty.span() =>
-                    #name: self.#name.take().unwrap_or_default()
+                    #name: self.#inner.#field_i.take().unwrap_or_default()
                 }
             }
         } else {
@@ -643,7 +640,7 @@ pub fn builder(input: TokenStream) -> TokenStream {
                 .as_ref()
                 .expect("missing_err is set when default is none");
             quote! {
-                #name: self.#name.take().ok_or(#build_err::#err)?
+                #name: self.#inner.#field_i.take().ok_or(#build_err::#err)?
             }
         }
     });
@@ -653,17 +650,23 @@ pub fn builder(input: TokenStream) -> TokenStream {
     let build_fn = if build_err_variants.is_empty() {
         quote! {
             #builder_vis fn build(#self_param) -> #ident #ty_generics {
-                #ident {
-                    #(#build_fields),*
+                #[allow(deprecated)] // #inner is set to deprecated
+                {
+                    #ident {
+                        #(#build_fields),*
+                    }
                 }
             }
         }
     } else {
         quote! {
             #builder_vis fn build(#self_param) -> ::core::result::Result<#ident #ty_generics, #build_err> {
-                Ok(#ident {
-                    #(#build_fields),*
-                })
+                #[allow(deprecated)] // #inner is set to deprecated
+                {
+                    Ok(#ident {
+                        #(#build_fields),*
+                    })
+                }
             }
         }
     };
@@ -690,11 +693,17 @@ pub fn builder(input: TokenStream) -> TokenStream {
         }
     };
 
+    let init = fields_named
+        .iter()
+        .map(|_| quote! { ::core::default::Default::default() });
+
     quote! {
         #build_err_enum
 
         #builder_vis struct #builder #impl_generics {
-            #fields
+            #[deprecated = "This field is for internal use only; You almost certainly don't need to touch this. If you encounter a bug or missing feature, file an issue on the repo."]
+            #[doc(hidden)]
+            #inner: (#(#fields,)*),
         }
 
         impl #impl_generics #builder #ty_generics #where_clause {
@@ -706,7 +715,7 @@ pub fn builder(input: TokenStream) -> TokenStream {
         impl #impl_generics ::core::default::Default for #builder #ty_generics #where_clause {
             fn default() -> Self {
                 Self {
-                    #(#field_names: ::core::default::Default::default()),*
+                    #inner: (#(#init,)*),
                 }
             }
         }
