@@ -17,18 +17,15 @@ name: test
 jobs:
   test-stable:
     runs-on: ubuntu-latest
-    name: ubuntu / ${{ matrix.toolchain }}
-    strategy:
-      matrix:
-        toolchain: stable
+    name: ubuntu / stable
     steps:
       - uses: actions/checkout@v6.0.2
         with:
           submodules: true
-      - name: Install ${{ matrix.toolchain }}
+      - name: Install stable
         uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: ${{ matrix.toolchain }}
+          toolchain: stable
       - name: cargo generate-lockfile
         # enable this ci template to run regardless of whether the lockfile is checked in or not
         if: hashFiles('Cargo.lock') == ''
@@ -41,18 +38,15 @@ jobs:
         run: cargo test --locked --all-features --doc
   test-beta:
     runs-on: ubuntu-latest
-    name: ubuntu / ${{ matrix.toolchain }}
-    strategy:
-      matrix:
-        toolchain: beta
+    name: ubuntu / beta
     steps:
       - uses: actions/checkout@v6.0.2
         with:
           submodules: true
-      - name: Install ${{ matrix.toolchain }}
+      - name: Install beta
         uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: ${{ matrix.toolchain }}
+          toolchain: beta
       - name: cargo generate-lockfile
         # enable this ci template to run regardless of whether the lockfile is checked in or not
         if: hashFiles('Cargo.lock') == ''
