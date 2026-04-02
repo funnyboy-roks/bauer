@@ -1,4 +1,4 @@
-use std::mem::MaybeUninit;
+use std::{marker::PhantomData, mem::MaybeUninit};
 
 use crate::__private::sealed::Sealed;
 
@@ -29,4 +29,28 @@ where
 
 pub trait BuilderState: Sealed {
     const SET: bool;
+}
+
+pub struct Count<T>(PhantomData<T>);
+impl sealed::Sealed for Count<()> {}
+impl<R, V> sealed::Sealed for Count<(R, V)> where Count<R>: Countable {}
+
+mod sealed {
+    /// Proper seal
+    pub trait Sealed {}
+}
+
+pub trait Countable: sealed::Sealed {
+    const COUNT: usize;
+}
+
+impl Countable for Count<()> {
+    const COUNT: usize = 0;
+}
+
+impl<R, V> Countable for Count<(R, V)>
+where
+    Count<R>: Countable,
+{
+    const COUNT: usize = 1 + <Count<R>>::COUNT;
 }

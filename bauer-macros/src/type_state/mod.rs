@@ -293,7 +293,37 @@ fn build_fn(
         let pascal = &field.idents.pascal;
         let field_i = field.tuple_index();
 
-        if let Some(Repeat { inner_ty, .. }) = &field.attr.repeat {
+        if let Some(Repeat {
+            inner_ty,
+            len: Some((len_pat, _)),
+            ..
+        }) = &field.attr.repeat
+        {
+            let len = match Len::try_from(len_pat) {
+                Ok(v) => v,
+                Err(e) => return e.to_compile_error(),
+            };
+
+            if let Len::Int(_) = len {
+                quote_spanned! {
+                    inner_ty.span() =>
+                    #name: {
+                        // SAFETY: The build function can only be called once the array has been
+                        // filled and is fully initialised.
+                        let array = unsafe { inner.#field_i.assume_init() };
+                        ::core::iter::FromIterator::from_iter(array.into_iter())
+                    }
+                }
+            } else {
+                quote_spanned! {
+                    inner_ty.span() =>
+                    #name: {
+                        let _: &::std::vec::Vec<_> = &inner.#field_i; // assert that the types are correct
+                        ::core::iter::FromIterator::from_iter(inner.#field_i.into_iter())
+                    }
+                }
+            }
+        } else if let Some(Repeat { inner_ty, .. }) = &field.attr.repeat {
             quote_spanned! {
                 inner_ty.span() =>
                 // using associated function syntax as that gives better error messages
@@ -499,7 +529,22 @@ pub fn type_state_builder(
 
     let field_decls = fields.iter().map(|f| {
         let ty = &f.ty;
-        if let Some(Repeat { inner_ty, .. }) = &f.attr.repeat {
+        if let Some(Repeat {
+            inner_ty,
+            len: Some((len_pat, _)),
+            ..
+        }) = &f.attr.repeat
+        {
+            let len = match Len::try_from(len_pat) {
+                Ok(v) => v,
+                Err(e) => return e.to_compile_error(),
+            };
+            if let Len::Int(len) = len {
+                quote! { ::core::mem::MaybeUninit<[#inner_ty; #len]> }
+            } else {
+                quote! { ::std::vec::Vec<#inner_ty> }
+            }
+        } else if let Some(Repeat { inner_ty, .. }) = &f.attr.repeat {
             quote! { ::std::vec::Vec<#inner_ty> }
         } else if f.wrapped_option {
             quote! { ::core::option::Option<#ty> }
@@ -509,7 +554,21 @@ pub fn type_state_builder(
     });
 
     let init = fields.iter().map(|f| {
-        if let Some(Repeat { .. }) = &f.attr.repeat {
+        if let Some(Repeat {
+            len: Some((len_pat, _)),
+            ..
+        }) = &f.attr.repeat
+        {
+            let len = match Len::try_from(len_pat) {
+                Ok(v) => v,
+                Err(e) => return e.to_compile_error(),
+            };
+            if let Len::Int(_) = len {
+                quote! { ::core::mem::MaybeUninit::uninit() }
+            } else {
+                quote! { ::std::vec::Vec::new() }
+            }
+        } else if let Some(Repeat { .. }) = &f.attr.repeat {
             quote! { ::std::vec::Vec::new() }
         } else if f.wrapped_option {
             quote! { ::core::option::Option::None }
@@ -611,10 +670,11 @@ pub fn type_state_builder(
                         #(#doc)*
                         #[allow(clippy::type_complexity)]
                         pub fn #fn_ident(self, #args) -> #builder #ty_generics {
+                            let value = #value;
                             let mut this = self; // rather than have `mut self` in the signature
                             #[allow(deprecated)] // #inner is set to deprecated
                             {
-                                this.#inner.#field_i.push(#value);
+                                this.#inner.#field_i.push(value);
                                 #builder {
                                     #inner: this.#inner,
                                     #state: ::core::marker::PhantomData,
@@ -624,7 +684,10 @@ pub fn type_state_builder(
                     }
                 }
             }
-            Some(Repeat { len: Some(_), .. }) => {
+            Some(Repeat {
+                len: Some((len_pat, _)),
+                ..
+            }) => {
                 let FieldIdents { count, pascal, .. } = &generic_fields[i].idents;
 
                 let impl_generics = CustomImplGenerics::new(
@@ -647,16 +710,46 @@ pub fn type_state_builder(
                         .replace(i, parse_quote! { #count<(#pascal, ())> }),
                 );
 
+                let mut field_where = where_clause.to_token_stream();
+                if let Some(where_clause) = where_clause {
+                    if !where_clause.predicates.trailing_punct() {
+                        <Token![,]>::default().to_tokens(&mut field_where);
+                    }
+                } else {
+                    <Token![where]>::default().to_tokens(&mut field_where);
+                }
+
+                let len = match Len::try_from(len_pat) {
+                    Ok(v) => v,
+                    Err(e) => return e.to_compile_error(),
+                };
+                let add = if let Len::Int(_) = len {
+                    field_where.extend(quote! {
+                        #private_module::state::Count::<#pascal>: #private_module::state::Countable,
+                    });
+                    quote! {
+                        let ptr = this.#inner.#field_i.as_mut_ptr();
+                        // SAFETY: ptr points to a valid location created by the MaybeUninit
+                        unsafe {
+                            let ptr: *mut _ = &raw mut (*ptr)[<#private_module::state::Count::<#pascal> as #private_module::state::Countable>::COUNT];
+                            ptr.write(value);
+                        }
+                    }
+                } else {
+                    quote! { this.#inner.#field_i.push(value); }
+                };
+
                 quote_spanned! {
                     fn_ident.span() =>
-                    impl #impl_generics #builder #ty_generics #where_clause {
+                    impl #impl_generics #builder #ty_generics #field_where {
                         #(#doc)*
                         #[allow(clippy::type_complexity)]
                         pub fn #fn_ident(self, #args) -> #builder #ret_ty_generics {
+                            let value = #value;
                             let mut this = self; // rather than have `mut self` in the signature
                             #[allow(deprecated)] // #inner is set to deprecated
                             {
-                                this.#inner.#field_i.push(#value);
+                                #add
                                 #builder {
                                     #inner: this.#inner,
                                     #state: ::core::marker::PhantomData,
@@ -694,11 +787,11 @@ pub fn type_state_builder(
 
                 let setter = if f.wrapped_option {
                     quote! {
-                        this.#inner.#field_i = Some(#value);
+                        this.#inner.#field_i = Some(value);
                     }
                 } else {
                     quote! {
-                        this.#inner.#field_i.write(#value);
+                        this.#inner.#field_i.write(value);
                     }
                 };
 
@@ -708,6 +801,7 @@ pub fn type_state_builder(
                         #(#doc)*
                         #[allow(clippy::type_complexity)]
                         pub fn #fn_ident(self, #args) -> #builder #return_struct_generics_fields {
+                            let value = #value;
                             let mut this = self; // rather than have `mut self` in the signature
                             #[allow(deprecated)] // #inner is set to deprecated
                             {

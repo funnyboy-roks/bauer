@@ -13,14 +13,17 @@ struct Point {
 #[derive(Debug, Builder)]
 #[builder(kind = "type-state")]
 struct Foo {
-    field_a: u32,
+    #[builder(repeat, repeat_n = 3)]
+    field_a: Vec<u32>,
     #[builder(into)]
     other: Point,
 }
 
 fn main() {
     let x: Foo = FooBuilder::new()
-        .field_a(69)
+        .field_a(0)
+        .field_a(1)
+        .field_a(2)
         .other(Point::builder().x(4).y(2).z(0))
         .into();
     dbg!(x);
