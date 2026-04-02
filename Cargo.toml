@@ -10,18 +10,10 @@ keywords = ["builder", "constructor", "derive-macro", "type-state", "macro"]
 rust-version = "1.85"
 
 [features]
-unlimited_range = []
-
-[lib]
-proc-macro = true
-path = "src/lib.rs"
+unlimited_range = ["bauer-macros/unlimited_range"]
 
 [dependencies]
-convert_case = "0.11.0"
-proc-macro2 = "1.0.103"
-quote = "1.0.42"
-strum = { version = "0.28.0", features = ["derive"] }
-syn = { version = "2.0.111", features = ["extra-traits", "full"] }
+bauer-macros = { path = "./bauer-macros" }
 
 [dev-dependencies]
 trybuild = "1.0.114"
