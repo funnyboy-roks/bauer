@@ -286,9 +286,11 @@ fn build_fn(
 ) -> TokenStream {
     let ident = &input.ident;
     let builder_vis = &builder_attr.vis;
+    let private_module = builder_attr.private_module();
 
     let build_fields = fields.iter().map(|field| {
         let name = &field.ident;
+        let pascal = &field.idents.pascal;
         let field_i = field.tuple_index();
 
         if let Some(Repeat { inner_ty, .. }) = &field.attr.repeat {
@@ -296,39 +298,68 @@ fn build_fn(
                 inner_ty.span() =>
                 // using associated function syntax as that gives better error messages
                 // (i.e., not "call chain may not have expected associated type"
-                #name: ::std::iter::FromIterator::from_iter(inner.#field_i.into_iter())
+                #name: {
+                    let _: &::std::vec::Vec<_> = &inner.#field_i; // assert that the types are correct
+                    ::core::iter::FromIterator::from_iter(inner.#field_i.into_iter())
+                }
             }
         } else if field.wrapped_option {
             quote! {
-                #name: inner.#field_i
+                // SAFETY: #pascal is the state of the current field, if it's set, then the value
+                // has been set.
+                #name: unsafe {
+                    #private_module::state::into_option::<#pascal, _>(inner.#field_i)
+                }
             }
         } else if let Some(default) = &field.attr.default {
             if let Some(default) = default {
-                if field.attr.into {
+                let default = if field.attr.into {
                     quote! {
-                        #name: inner.#field_i.unwrap_or_else(|| #default.into())
+                        ::core::convert::Into::into(#default)
                     }
                 } else {
                     quote! {
-                        #name: inner.#field_i.unwrap_or_else(|| #default)
+                        #default
+                    }
+                };
+                quote! {
+                    // TODO: make this a function once const traits are stable
+                    #name: if <#pascal as #private_module::state::BuilderState>::SET {
+                        // SAFETY: If #pascal::SET is true, then we have already set #field_i
+                        unsafe { inner.#field_i.assume_init() }
+                    } else {
+                        #default
                     }
                 }
             } else {
                 quote_spanned! {
                     field.ty.span() =>
-                    #name: inner.#field_i.unwrap_or_default()
+                    // TODO: make this a function once const traits are stable
+                    #name: if <#pascal as #private_module::state::BuilderState>::SET {
+                        // SAFETY: If #pascal::SET is true, then we have already set #field_i
+                        unsafe { inner.#field_i.assume_init() }
+                    } else {
+                        ::core::default::Default::default()
+                    }
                 }
             }
         } else {
             quote! {
-                #name: inner.#field_i.unwrap()
+                // SAFETY: This function is only accessible if all required fields are set.  This
+                // is enusred by the type bounds.
+                #name: unsafe { inner.#field_i.assume_init() }
             }
         }
     });
 
     let build_impl_generics = generic_fields.iter().enumerate().filter_map(|(i, f)| {
-        if f.optional() || len_structs.contains_key(&i) {
-            Some(&f.idents.pascal)
+        let pascal = &f.idents.pascal;
+        if f.optional() {
+            Some(quote! {
+                #pascal: #private_module::state::BuilderState
+            })
+        } else if f.optional() || len_structs.contains_key(&i) {
+            Some(quote! { #pascal })
         } else {
             None
         }
@@ -338,20 +369,14 @@ fn build_fn(
         let FieldIdents {
             count, pascal, set, ..
         } = &f.idents;
-        if len_structs.contains_key(&i) {
-            let ty: Type = parse_quote! { #count<#pascal> };
-            ty
+        let ty: Type = if len_structs.contains_key(&i) {
+            parse_quote! { #count<#pascal> }
         } else if f.optional() {
-            Type::from(TypePath {
-                qself: None,
-                path: pascal.clone().into(),
-            })
+            parse_quote! { #pascal }
         } else {
-            Type::from(TypePath {
-                qself: None,
-                path: set.clone().into(),
-            })
-        }
+            parse_quote! { #set<true> }
+        };
+        ty
     });
 
     let impl_generics = CustomImplGenerics::new(&input.generics, build_impl_generics);
@@ -414,24 +439,26 @@ pub fn type_state_builder(
 
     let mut out = TokenStream::new();
 
+    let private_module = builder_attr.private_module();
     out.extend(generic_fields.iter().map(|&f| {
-        let FieldIdents {
-            count, set, unset, ..
-        } = &f.idents;
+        let FieldIdents { count, set, .. } = &f.idents;
         if f.attr.repeat.as_ref().is_some_and(|r| r.len.is_some()) {
             quote! {
                 #[doc(hidden)]
+                #[allow(non_camel_case_types)]
                 #[non_exhaustive]
                 struct #count<T>(T); // never constructed, so doesn't really need to be PhantomData
             }
         } else {
             quote! {
                 #[doc(hidden)]
+                #[allow(non_camel_case_types)]
                 #[non_exhaustive]
-                struct #set;
-                #[doc(hidden)]
-                #[non_exhaustive]
-                struct #unset;
+                struct #set<const SET: bool>;
+                impl<const SET: bool> #private_module::sealed::Sealed for #set<SET> {}
+                impl<const SET: bool> #private_module::state::BuilderState for #set<SET> {
+                    const SET: bool = SET;
+                }
             }
         }
     }));
@@ -471,11 +498,23 @@ pub fn type_state_builder(
         input.generics.split_for_impl();
 
     let field_decls = fields.iter().map(|f| {
+        let ty = &f.ty;
         if let Some(Repeat { inner_ty, .. }) = &f.attr.repeat {
             quote! { ::std::vec::Vec<#inner_ty> }
-        } else {
-            let ty = &f.ty;
+        } else if f.wrapped_option {
             quote! { ::core::option::Option<#ty> }
+        } else {
+            quote! { ::core::mem::MaybeUninit<#ty> }
+        }
+    });
+
+    let init = fields.iter().map(|f| {
+        if let Some(Repeat { .. }) = &f.attr.repeat {
+            quote! { ::std::vec::Vec::new() }
+        } else if f.wrapped_option {
+            quote! { ::core::option::Option::None }
+        } else {
+            quote! { ::core::mem::MaybeUninit::uninit() }
         }
     });
 
@@ -488,11 +527,11 @@ pub fn type_state_builder(
     };
 
     let new_generics = generic_fields.iter().map(|f| {
-        let FieldIdents { count, unset, .. } = &f.idents;
+        let FieldIdents { count, set, .. } = &f.idents;
         if f.attr.repeat.as_ref().is_some_and(|f| f.len.is_some()) {
             quote! { #count<()> }
         } else {
-            unset.to_token_stream()
+            quote! { #set<false> }
         }
     });
 
@@ -502,17 +541,13 @@ pub fn type_state_builder(
     );
     let new_generics = CustomTypeGenerics::new(&input.generics, new_generics);
 
-    let init = fields
-        .iter()
-        .map(|_| quote! { ::core::default::Default::default() });
-
     out.extend(quote! {
         #[allow(clippy::type_complexity)]
-        #builder_vis struct #builder #struct_generics {
-            #[deprecated = "This field is for internal use only; You almost certainly don't need to touch this. If you encounter a bug or missing feature, file an issue on the repo."]
+        #builder_vis struct #builder #struct_generics #where_clause {
+            #[deprecated = "This field is for internal use only; you almost certainly don't need to touch this. If you encounter a bug or missing feature, file an issue on the repo."]
             #[doc(hidden)]
             #inner: (#(#field_decls,)*),
-            #[deprecated = "This field is for internal use only; You almost certainly don't need to touch this. If you encounter a bug or missing feature, file an issue on the repo."]
+            #[deprecated = "This field is for internal use only; you almost certainly don't need to touch this. If you encounter a bug or missing feature, file an issue on the repo."]
             #[doc(hidden)]
             #phantom
         }
@@ -551,6 +586,14 @@ pub fn type_state_builder(
 
         let doc = &f.doc;
 
+        fn ident_to_type(ident: &Ident) -> Type {
+            TypePath {
+                qself: None,
+                path: ident.clone().into(),
+            }
+            .into()
+        }
+
         let field_i = f.tuple_index();
         let fun = match &f.attr.repeat {
             Some(Repeat { len: None, .. }) => {
@@ -584,14 +627,6 @@ pub fn type_state_builder(
             Some(Repeat { len: Some(_), .. }) => {
                 let FieldIdents { count, pascal, .. } = &generic_fields[i].idents;
 
-                fn ident_to_type(ident: Ident) -> Type {
-                    TypePath {
-                        qself: None,
-                        path: ident.into(),
-                    }
-                    .into()
-                }
-
                 let impl_generics = CustomImplGenerics::new(
                     &input.generics,
                     generic_fields.iter().map(|f| &f.idents.pascal),
@@ -600,7 +635,7 @@ pub fn type_state_builder(
                     &input.generics,
                     generic_fields
                         .iter()
-                        .map(|f| ident_to_type(f.idents.pascal.clone()))
+                        .map(|f| ident_to_type(&f.idents.pascal))
                         .replace(i, parse_quote! { #count<#pascal> }),
                 );
 
@@ -608,7 +643,7 @@ pub fn type_state_builder(
                     &input.generics,
                     generic_fields
                         .iter()
-                        .map(|f| ident_to_type(f.idents.pascal.clone()))
+                        .map(|f| ident_to_type(&f.idents.pascal))
                         .replace(i, parse_quote! { #count<(#pascal, ())> }),
                 );
 
@@ -636,25 +671,36 @@ pub fn type_state_builder(
                     &input.generics,
                     generic_fields[..i]
                         .iter()
-                        .chain(generic_fields.iter().skip(i + 1))
+                        .chain(generic_fields[i + 1..].iter())
                         .map(|f| &f.idents.pascal),
                 );
 
+                let FieldIdents { set, .. } = &generic_fields[i].idents;
                 let struct_generics_fields = CustomTypeGenerics::new(
                     &input.generics,
                     generic_fields
                         .iter()
-                        .map(|f| &f.idents.pascal)
-                        .replace(i, &generic_fields[i].idents.unset),
+                        .map(|f| ident_to_type(&f.idents.pascal))
+                        .replace(i, parse_quote! { #set<false> }),
                 );
 
                 let return_struct_generics_fields = CustomTypeGenerics::new(
                     &input.generics,
                     generic_fields
                         .iter()
-                        .map(|f| &f.idents.pascal)
-                        .replace(i, &generic_fields[i].idents.set),
+                        .map(|f| ident_to_type(&f.idents.pascal))
+                        .replace(i, parse_quote! { #set<true> }),
                 );
+
+                let setter = if f.wrapped_option {
+                    quote! {
+                        this.#inner.#field_i = Some(#value);
+                    }
+                } else {
+                    quote! {
+                        this.#inner.#field_i.write(#value);
+                    }
+                };
 
                 quote_spanned! {
                     fn_ident.span() =>
@@ -665,7 +711,7 @@ pub fn type_state_builder(
                             let mut this = self; // rather than have `mut self` in the signature
                             #[allow(deprecated)] // #inner is set to deprecated
                             {
-                                this.#inner.#field_i = Some(#value);
+                                #setter
                                 #builder {
                                     #inner: this.#inner,
                                     #state: ::core::marker::PhantomData,

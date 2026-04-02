@@ -82,3 +82,6 @@
 //! [`Builder`]: https://docs.rs/bauer/latest/bauer/derive.Builder.html
 
 pub use bauer_macros::*;
+
+#[doc(hidden)]
+pub mod __private;

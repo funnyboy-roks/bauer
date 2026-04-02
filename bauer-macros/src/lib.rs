@@ -160,6 +160,22 @@ mod util;
 /// }
 /// ```
 ///
+/// ## **`crate`**
+///
+/// Default: `bauer`
+///
+/// The name of this crate in the current crate.  This should only be needed if you rename the
+/// dependency in your `Cargo.toml`
+///
+/// ```
+/// # use bauer::Builder;
+/// #[derive(Builder)]
+/// #[builder(crate = not_bauer)]
+/// pub struct Foo {
+///     a: u32,
+/// }
+/// ```
+///
 /// # Fields Attributes
 ///
 /// ## **`default`**

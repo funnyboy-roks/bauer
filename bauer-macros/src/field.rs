@@ -179,7 +179,6 @@ impl Attribute {
 pub struct FieldIdents {
     pub pascal: Ident,
     pub set: Ident,
-    pub unset: Ident,
     pub count: Ident,
 }
 
@@ -187,9 +186,8 @@ impl FieldIdents {
     fn new(struct_name: &Ident, ident: &Ident) -> Self {
         let pascal = Ident::new(&ident.to_string().to_case(Case::Pascal), ident.span());
         Self {
-            set: format_ident!("{}{}Set", struct_name, pascal, span = pascal.span()),
-            unset: format_ident!("{}{}Unset", struct_name, pascal, span = pascal.span()),
-            count: format_ident!("{}{}Count", struct_name, pascal, span = pascal.span()),
+            set: format_ident!("{}_{}_Set", struct_name, pascal, span = pascal.span()),
+            count: format_ident!("{}_{}_Count", struct_name, pascal, span = pascal.span()),
             pascal,
         }
     }
