@@ -188,7 +188,9 @@ pub struct FieldIdents {
 
 impl FieldIdents {
     fn new(struct_name: &Ident, ident: &Ident) -> Self {
-        let pascal = Ident::new(&ident.to_string().to_case(Case::Pascal), ident.span());
+        let name = ident.to_string();
+        let name = name.trim_start_matches("r#");
+        let pascal = Ident::new(&name.to_case(Case::Pascal), ident.span());
         Self {
             set: format_ident!("{}_{}_Set", struct_name, pascal, span = pascal.span()),
             count: format_ident!("{}_{}_Count", struct_name, pascal, span = pascal.span()),
@@ -229,6 +231,16 @@ impl BuilderField {
         self.wrapped_option || self.attr.default.is_some()
     }
 
+    // Taken from https://docs.rs/syn/latest/src/syn/token.rs.html#692-746
+    const KEYWORDS: &[&'static str] = &[
+        "abstract", "as", "async", "auto", "await", "become", "box", "break", "const", "continue",
+        "crate", "default", "do", "dyn", "else", "enum", "extern", "final", "fn", "for", "if",
+        "impl", "in", "let", "loop", "macro", "match", "mod", "move", "mut", "override", "priv",
+        "pub", "raw", "ref", "return", "Self", "self", "static", "struct", "super", "trait", "try",
+        "type", "typeof", "union", "unsafe", "unsized", "use", "virtual", "where", "while",
+        "yield",
+    ];
+
     pub fn function_ident(&self, builder_attr: &BuilderAttr) -> Ident {
         let ident = self.attr.rename.as_ref().unwrap_or(&self.ident);
         let prefix = if self.attr.skip_prefix {
@@ -243,7 +255,15 @@ impl BuilderField {
             &builder_attr.suffix
         };
 
-        format_ident!("{}{}{}", prefix, ident, suffix, span = ident.span())
+        let mut ident = format_ident!("{}{}{}", prefix, ident, suffix, span = ident.span());
+        // hack to escape idents
+        for kw in Self::KEYWORDS {
+            if ident == kw {
+                ident = format_ident!("r#{}", ident);
+                break;
+            }
+        }
+        ident
     }
 
     pub(crate) fn function(&self, builder_attr: &BuilderAttr, inner: &Ident) -> TokenStream {
@@ -321,7 +341,13 @@ impl BuilderField {
             ident: ident.clone(),
             ty: ty.clone(),
             missing_err: if attr.default.is_none() && attr.repeat.is_none() && !wrapped_option {
-                let mut ident = format_ident!("Missing{}", ident.to_string().to_case(Case::Pascal));
+                let mut ident = format_ident!(
+                    "Missing{}",
+                    ident
+                        .to_string()
+                        .trim_start_matches("r#")
+                        .to_case(Case::Pascal)
+                );
                 ident.set_span(value.ident.as_ref().unwrap().span());
                 Some(ident)
             } else {
