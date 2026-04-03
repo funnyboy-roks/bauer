@@ -83,7 +83,9 @@ mod test {
     #[test]
     fn pushable_array() {
         let mut a = PushableArray::<2, u32>::new();
+        assert!(a.is_empty());
         let _ = a.push(69);
+        assert!(!a.is_empty());
         let _ = a.push(420);
         assert!(a.is_valid());
         assert!(!a.has_too_many());
@@ -94,7 +96,9 @@ mod test {
     #[test]
     fn pushable_array_too_many() {
         let mut a = PushableArray::<2, u32>::new();
+        assert!(a.is_empty());
         let _ = a.push(69);
+        assert!(!a.is_empty());
         let _ = a.push(420);
         let _ = a.push(1337);
         assert!(!a.is_valid());
@@ -105,7 +109,9 @@ mod test {
     #[test]
     fn pushable_array_too_few() {
         let mut a = PushableArray::<2, u32>::new();
+        assert!(a.is_empty());
         let _ = a.push(69);
+        assert!(!a.is_empty());
         assert!(!a.is_valid());
         assert!(!a.has_too_many());
         assert_eq!(a.into_array(), None);
