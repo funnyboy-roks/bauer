@@ -1,8 +1,8 @@
 use std::ops::Range;
 
 use convert_case::{Case, Casing};
-use proc_macro2::TokenStream;
-use quote::{ToTokens, format_ident, quote};
+use proc_macro2::{Span, TokenStream};
+use quote::{ToTokens, format_ident, quote, quote_spanned};
 use syn::{
     Expr, ExprClosure, Field, Ident, LitStr, Meta, Pat, Token, Type, parenthesized,
     parse::{Parse, ParseStream},
@@ -258,16 +258,18 @@ impl BuilderField {
         let field_i = self.tuple_index();
 
         let setter = if self.attr.repeat.is_some() {
-            quote! { self.#inner.#field_i.push(value) }
+            quote! { let _ = self.#inner.#field_i.push(value) }
         } else {
             quote! { self.#inner.#field_i = Some(value) }
         };
 
+        let konst = builder_attr.konst_kw();
+
         quote! {
             #(#doc)*
                 #[must_use = "The builder doesn't construct its type until `.build()` is called"]
-                #builder_vis fn #fn_ident(#self_param, #args) -> #return_type {
-                    let value = #value;
+                #builder_vis #konst fn #fn_ident(#self_param, #args) -> #return_type {
+                    let value: #ty = #value;
                     #[allow(deprecated)] // #inner is set to deprecated
                     {
                         #setter;
@@ -636,7 +638,7 @@ pub struct FieldAttr {
     /// Some(None)       -> default is Default::default()
     /// None             -> no default
     pub default: Option<Option<Expr>>,
-    pub into: bool,
+    pub into: Option<Span>,
     pub repeat: Option<Repeat>,
     pub rename: Option<Ident>,
     pub skip_prefix: bool,
@@ -663,27 +665,20 @@ impl FieldAttr {
 
             let types = tuple.elems.iter();
 
-            return if self.into {
+            return if let Some(span) = self.into {
                 (
-                    quote! {
-                        #(#names: impl ::core::convert::Into<#types>),*
-                    },
-                    quote! { (#(::core::convert::Into::into(#names)),*) },
+                    quote_spanned! {span=> #(#names: impl ::core::convert::Into<#types>),* },
+                    quote_spanned! {span=> (#(::core::convert::Into::into(#names)),*) },
                 )
             } else {
-                (
-                    quote! {
-                        #(#names: #types),*
-                    },
-                    quote! { (#(#names),*) },
-                )
+                (quote! { #(#names: #types),* }, quote! { (#(#names),*) })
             };
         }
 
-        if self.into {
+        if let Some(span) = self.into {
             (
-                quote! { #field_name: impl ::core::convert::Into<#ty> },
-                quote! { ::core::convert::Into::into(#field_name) },
+                quote_spanned! {span=> #field_name: impl ::core::convert::Into<#ty> },
+                quote_spanned! {span=> ::core::convert::Into::into(#field_name) },
             )
         } else {
             (quote! { #field_name: #ty }, field_name.to_token_stream())
@@ -715,13 +710,17 @@ impl FieldAttr {
                         let s: LitStr = input.parse()?;
                         Some(s.parse()?)
                     } else {
+                        if builder_attr.konst {
+                            bail!(ident.span() => "`default` may not be used without a value on const builders");
+                        }
+
                         None
                     };
 
                     out.default = Some(value)
                 }
                 Attribute::Into => {
-                    if out.into {
+                    if out.into.is_some() {
                         bail!(ident.span() => "`into` may only be used once");
                     }
 
@@ -729,7 +728,11 @@ impl FieldAttr {
                         bail!(ident.span() => "`into` cannot be added with `adapter`");
                     }
 
-                    out.into = true
+                    if builder_attr.konst {
+                        bail!(ident.span() => "`into` may not be used on const builders");
+                    }
+
+                    out.into = Some(ident.span());
                 }
                 Attribute::Repeat => {
                     if out.repeat.is_some() {
@@ -738,6 +741,10 @@ impl FieldAttr {
 
                     if out.default.is_some() {
                         bail!(ident.span() => "`repeat` cannot be added with `default`");
+                    }
+
+                    if builder_attr.konst && !matches!(field.ty, Type::Array(_)) {
+                        bail!(ident.span() => "`repeat` may only be used for arrays on const builders");
                     }
 
                     let (inner, len, array) = if input.peek(Token![=]) {
@@ -794,6 +801,10 @@ impl FieldAttr {
 
                     if rep.len.is_some() {
                         bail!(ident.span() => "`repeat_n` may only be used once");
+                    }
+
+                    if builder_attr.konst {
+                        bail!(ident.span() => "`repeat_n` may not be used on const builders");
                     }
 
                     let _: Token![=] = input.parse()?;
@@ -884,7 +895,7 @@ impl FieldAttr {
                         bail!(ident.span() => "`adapter` cannot be added with `tuple`");
                     }
 
-                    if out.into {
+                    if out.into.is_some() {
                         bail!(ident.span() => "`adapter` cannot be added with `into`");
                     }
 

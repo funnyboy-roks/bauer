@@ -75,14 +75,10 @@ fn build_fn(
             }
         } else if let Some(default) = &field.attr.default {
             if let Some(default) = default {
-                let default = if field.attr.into {
-                    quote! {
-                        ::core::convert::Into::into(#default)
-                    }
+                let default = if let Some(span) = field.attr.into {
+                    quote_spanned! {span=> ::core::convert::Into::into(#default) }
                 } else {
-                    quote! {
-                        #default
-                    }
+                    quote! { #default }
                 };
                 quote! {
                     // TODO: make this a function once const traits are stable
@@ -164,9 +160,11 @@ fn build_fn(
 
     let (_, default_ty_generics, _) = input.generics.split_for_impl();
 
+    let konst = builder_attr.konst_kw();
+
     quote! {
         impl #impl_generics #builder #ty_generics #builder_where {
-            #builder_vis fn build(self) -> #ident #default_ty_generics  {
+            #builder_vis #konst fn build(self) -> #ident #default_ty_generics  {
                 #[allow(deprecated)] // #inner is set to deprecated
                 {
                     let inner = self.#inner;
@@ -310,6 +308,8 @@ pub fn type_state_builder(
     );
     let new_generics = CustomTypeGenerics::new(&input.generics, new_generics);
 
+    let konst = builder_attr.konst_kw();
+
     out.extend(quote! {
         #[allow(clippy::type_complexity)]
         #[must_use = "The builder doesn't construct its type until `.build()` is called"]
@@ -323,13 +323,13 @@ pub fn type_state_builder(
         }
 
         impl #default_impl_generics #ident #default_ty_generics #where_clause {
-            #builder_vis fn builder() -> #builder #new_generics {
+            #builder_vis #konst fn builder() -> #builder #new_generics {
                 #builder::new()
             }
         }
 
         impl #default_impl_generics #builder #new_generics #where_clause {
-            #builder_vis fn new() -> Self {
+            #builder_vis #konst fn new() -> Self {
                 Self {
                     #inner: (#(#init,)*),
                     #state: ::core::marker::PhantomData,
@@ -365,6 +365,7 @@ pub fn type_state_builder(
         }
 
         let field_i = f.tuple_index();
+        let value_ty = &f.arg_ty();
         let fun = match &f.attr.repeat {
             Some(Repeat { len: Len::None, .. }) => {
                 let impl_generics = CustomImplGenerics::new(
@@ -380,8 +381,8 @@ pub fn type_state_builder(
                     impl #impl_generics #builder #ty_generics #where_clause {
                         #(#doc)*
                         #[allow(clippy::type_complexity)]
-                        pub fn #fn_ident(self, #args) -> #builder #ty_generics {
-                            let value = #value;
+                        pub #konst fn #fn_ident(self, #args) -> #builder #ty_generics {
+                            let value: #value_ty = #value;
                             let mut this = self; // rather than have `mut self` in the signature
                             #[allow(deprecated)] // #inner is set to deprecated
                             {
@@ -448,8 +449,8 @@ pub fn type_state_builder(
                     impl #impl_generics #builder #ty_generics #field_where {
                         #(#doc)*
                         #[allow(clippy::type_complexity)]
-                        pub fn #fn_ident(self, #args) -> #builder #ret_ty_generics {
-                            let value = #value;
+                        pub #konst fn #fn_ident(self, #args) -> #builder #ret_ty_generics {
+                            let value: #value_ty = #value;
                             let mut this = self; // rather than have `mut self` in the signature
                             #[allow(deprecated)] // #inner is set to deprecated
                             {
@@ -504,8 +505,8 @@ pub fn type_state_builder(
                     impl #impl_generics_fields #builder #struct_generics_fields #where_clause {
                         #(#doc)*
                         #[allow(clippy::type_complexity)]
-                        pub fn #fn_ident(self, #args) -> #builder #return_struct_generics_fields {
-                            let value = #value;
+                        pub #konst fn #fn_ident(self, #args) -> #builder #return_struct_generics_fields {
+                            let value: #value_ty = #value;
                             let mut this = self; // rather than have `mut self` in the signature
                             #[allow(deprecated)] // #inner is set to deprecated
                             {

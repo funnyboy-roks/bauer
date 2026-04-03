@@ -28,11 +28,17 @@ impl<const N: usize, T> PushableArray<N, T> {
         }
     }
 
-    pub fn push(&mut self, t: T) {
-        if self.len < N {
+    /// Push a value.  Returns `Err(T)` if the value would not fit in the array
+    // NOTE: This returns the failed T so that it can be const without needing `const Drop`
+    pub const fn push(&mut self, t: T) -> Result<(), T> {
+        let ret = if self.len < N {
             self.array[self.len].write(t);
-        }
+            Ok(())
+        } else {
+            Err(t)
+        };
         self.len += 1;
+        ret
     }
 
     pub const fn len(&self) -> usize {
@@ -77,8 +83,8 @@ mod test {
     #[test]
     fn pushable_array() {
         let mut a = PushableArray::<2, u32>::new();
-        a.push(69);
-        a.push(420);
+        let _ = a.push(69);
+        let _ = a.push(420);
         assert!(a.is_valid());
         assert!(!a.has_too_many());
         let a = a.into_array().unwrap();
@@ -88,9 +94,9 @@ mod test {
     #[test]
     fn pushable_array_too_many() {
         let mut a = PushableArray::<2, u32>::new();
-        a.push(69);
-        a.push(420);
-        a.push(1337);
+        let _ = a.push(69);
+        let _ = a.push(420);
+        let _ = a.push(1337);
         assert!(!a.is_valid());
         assert!(a.has_too_many());
         assert_eq!(a.into_array(), None);
@@ -99,7 +105,7 @@ mod test {
     #[test]
     fn pushable_array_too_few() {
         let mut a = PushableArray::<2, u32>::new();
-        a.push(69);
+        let _ = a.push(69);
         assert!(!a.is_valid());
         assert!(!a.has_too_many());
         assert_eq!(a.into_array(), None);

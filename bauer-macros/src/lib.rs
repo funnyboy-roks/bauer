@@ -121,6 +121,27 @@ mod util;
 ///
 /// Default: `"owned"`
 ///
+/// ## **`const`**
+///
+/// Make the generated builder work at compile-time.
+///
+/// Using `const` creates some limitations for the builder, primarily:
+///
+/// - All types need to be constructable at compile-time
+/// - `repeat` only works on arrays (`repeat_n` is disabled)
+/// - `adapter`s must be const (no syntax change needed, but the body needs to work in const)
+/// - `into` is disabled
+/// - `default` requires the default value to be specified (`default = "<expression>"`)
+///
+/// ```
+/// # use bauer_macros::Builder;
+/// #[derive(Builder)]
+/// #[builder(crate = not_bauer)]
+/// pub struct Foo {
+///     a: u32,
+/// }
+/// ```
+///
 /// ## **`prefix`**/**`suffix`**
 ///
 /// Default: `prefix = "", suffix = ""`
@@ -477,31 +498,43 @@ pub fn builder(input: TokenStream) -> TokenStream {
         }
     };
 
-    let private_module = attr.private_module();
-    let fields = fields_named.iter().map(|f| {
-        if let Some(Repeat {
-            inner_ty,
-            array,
-            len,
-        }) = &f.attr.repeat
-        {
-            if *array {
-                let Len::Raw { pattern, .. } = &len else {
-                    unreachable!("If array, then Len::Raw set");
-                };
-                quote! { #private_module::PushableArray<#pattern, #inner_ty> }
-            } else {
-                quote! { ::std::vec::Vec<#inner_ty> }
-            }
-        } else {
-            let ty = &f.ty;
-            quote! { ::core::option::Option<#ty> }
-        }
-    });
-
     if attr.kind == Kind::TypeState {
         return type_state::type_state_builder(&attr, &input, &fields_named).into();
     }
+
+    let private_module = attr.private_module();
+    let (fields, init): (Vec<_>, Vec<_>) = fields_named
+        .iter()
+        .map(|f| {
+            if let Some(Repeat {
+                inner_ty,
+                array,
+                len,
+            }) = &f.attr.repeat
+            {
+                if *array {
+                    let Len::Raw { pattern, .. } = &len else {
+                        unreachable!("If array, then Len::Raw set");
+                    };
+                    (
+                        quote! { #private_module::PushableArray<#pattern, #inner_ty> },
+                        quote! { #private_module::PushableArray::new() },
+                    )
+                } else {
+                    (
+                        quote! { ::std::vec::Vec<#inner_ty> },
+                        quote! { ::std::vec::Vec::new() },
+                    )
+                }
+            } else {
+                let ty = &f.ty;
+                (
+                    quote! { ::core::option::Option<#ty> },
+                    quote! { ::core::option::Option::None },
+                )
+            }
+        })
+        .collect();
 
     let functions: TokenStream2 = fields_named
         .iter()
@@ -545,7 +578,7 @@ pub fn builder(input: TokenStream) -> TokenStream {
             if let Len::Raw { pattern, error } = &rep.len {
                 let value = if rep.array {
                     quote_spanned! { inner_ty.span()=> {
-                        let arr = ::core::mem::take(&mut self.#inner.#field_i);
+                        let arr = ::core::mem::replace(&mut self.#inner.#field_i, #private_module::PushableArray::new());
                         arr.into_array()
                             .expect("The match ensures the length of this array is correct")
                     }}
@@ -573,13 +606,17 @@ pub fn builder(input: TokenStream) -> TokenStream {
             }
         } else if let Some(default) = &field.attr.default {
             if let Some(default) = default {
-                if field.attr.into {
-                    quote! {
+                if let Some(span) = field.attr.into {
+                    quote_spanned! {span=>
                         #name: self.#inner.#field_i.take().unwrap_or_else(|| #default.into())
                     }
                 } else {
                     quote! {
-                        #name: self.#inner.#field_i.take().unwrap_or_else(|| #default)
+                        // NOTE: not using Option::unwrap_or_else, since it's not stable in const
+                        #name: match self.#inner.#field_i.take() {
+                            Some(v) => v,
+                            None => #default
+                        }
                     }
                 }
             } else {
@@ -594,16 +631,22 @@ pub fn builder(input: TokenStream) -> TokenStream {
                 .as_ref()
                 .expect("missing_err is set when default is none");
             quote! {
-                #name: self.#inner.#field_i.take().ok_or(#build_err::#err)?
+                // NOTE: not using Option::ok_or, since it's not stable in const
+                #name: match self.#inner.#field_i.take() {
+                    Some(v) => v,
+                    None => return Err(#build_err::#err),
+                }
             }
         }
     });
 
     let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
 
+    let konst = attr.konst_kw();
+
     let build_fn = if build_err_variants.is_empty() {
         quote! {
-            #builder_vis fn build(#self_param) -> #ident #ty_generics {
+            #builder_vis #konst fn build(#self_param) -> #ident #ty_generics {
                 #[allow(deprecated)] // #inner is set to deprecated
                 {
                     #ident {
@@ -614,7 +657,7 @@ pub fn builder(input: TokenStream) -> TokenStream {
         }
     } else {
         quote! {
-            #builder_vis fn build(#self_param) -> ::core::result::Result<#ident #ty_generics, #build_err> {
+            #builder_vis #konst fn build(#self_param) -> ::core::result::Result<#ident #ty_generics, #build_err> {
                 #[allow(deprecated)] // #inner is set to deprecated
                 {
                     Ok(#ident {
@@ -646,10 +689,6 @@ pub fn builder(input: TokenStream) -> TokenStream {
             impl ::core::error::Error for #build_err {}
         }
     };
-
-    let init = fields_named
-        .iter()
-        .map(|_| quote! { ::core::default::Default::default() });
 
     let into_impl = if build_err_variants.is_empty() {
         quote! {
@@ -687,17 +726,23 @@ pub fn builder(input: TokenStream) -> TokenStream {
             #build_fn
         }
 
-        impl #impl_generics ::core::default::Default for #builder #ty_generics #where_clause {
-            fn default() -> Self {
+        impl #impl_generics #builder #ty_generics #where_clause {
+            pub #konst fn new() -> Self {
                 Self {
                     #inner: (#(#init,)*),
                 }
             }
         }
 
+        impl #impl_generics ::core::default::Default for #builder #ty_generics #where_clause {
+            fn default() -> Self {
+                Self::new()
+            }
+        }
+
         impl #impl_generics #ident #ty_generics #where_clause {
-            #builder_vis fn builder() -> #builder #ty_generics {
-                ::core::default::Default::default()
+            #builder_vis #konst fn builder() -> #builder #ty_generics {
+                #builder::new()
             }
         }
 

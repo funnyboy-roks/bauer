@@ -10,6 +10,8 @@ use syn::{
     parse_quote,
 };
 
+use crate::util::OptionalToken;
+
 macro_rules! bail {
     ($span: expr => $message: literal $(, $args: expr)*$(,)?) => {
         return Err(syn::Error::new(
@@ -61,6 +63,7 @@ enum Attribute {
     Suffix,
     Visibility,
     Crate,
+    Const,
 }
 
 impl Attribute {
@@ -105,6 +108,7 @@ pub struct BuilderAttr {
     pub suffix: String,
     pub vis: Visibility,
     pub krate: Ident,
+    pub konst: bool,
 }
 
 impl BuilderAttr {
@@ -113,14 +117,23 @@ impl BuilderAttr {
             kind: Default::default(),
             prefix: Default::default(),
             suffix: Default::default(),
-            krate: format_ident!("bauer"),
             vis,
+            krate: format_ident!("bauer"),
+            konst: false,
         }
     }
 
     pub fn private_module(&self) -> syn::Path {
         let krate = &self.krate;
         parse_quote! { ::#krate::__private }
+    }
+
+    pub fn konst_kw(&self) -> OptionalToken<Token![const]> {
+        if self.konst {
+            OptionalToken(Some(<Token![const]>::default()))
+        } else {
+            OptionalToken(None)
+        }
     }
 
     pub fn self_param(&self) -> TokenStream {
@@ -150,12 +163,12 @@ impl BuilderAttr {
         let mut vis_set = false;
         let mut crate_set = false;
 
-        while input.peek(Ident) || input.peek(Token![crate]) {
+        while input.peek(Ident::peek_any) {
             let ident = Ident::parse_any(input)?;
             match Attribute::parse(&ident)? {
                 Attribute::Kind => {
                     if kind_set {
-                        bail!(ident.span() => "`kind` may only be used once.");
+                        bail!(ident.span() => "`kind` may only be used once");
                     }
 
                     let _: Token![=] = input.parse()?;
@@ -164,7 +177,7 @@ impl BuilderAttr {
                 }
                 Attribute::Prefix => {
                     if prefix_set {
-                        bail!(ident.span() => "`prefix` may only be used once.");
+                        bail!(ident.span() => "`prefix` may only be used once");
                     }
 
                     let _: Token![=] = input.parse()?;
@@ -173,7 +186,7 @@ impl BuilderAttr {
                 }
                 Attribute::Suffix => {
                     if suffix_set {
-                        bail!(ident.span() => "`suffix` may only be used once.");
+                        bail!(ident.span() => "`suffix` may only be used once");
                     }
 
                     let _: Token![=] = input.parse()?;
@@ -182,7 +195,7 @@ impl BuilderAttr {
                 }
                 Attribute::Visibility => {
                     if vis_set {
-                        bail!(ident.span() => "`visibility` may only be used once.");
+                        bail!(ident.span() => "`visibility` may only be used once");
                     }
 
                     let _: Token![=] = input.parse()?;
@@ -191,12 +204,19 @@ impl BuilderAttr {
                 }
                 Attribute::Crate => {
                     if crate_set {
-                        bail!(ident.span() => "`crate` may only be used once.");
+                        bail!(ident.span() => "`crate` may only be used once");
                     }
 
                     let _: Token![=] = input.parse()?;
                     out.krate = input.parse()?;
                     crate_set = true;
+                }
+                Attribute::Const => {
+                    if out.konst {
+                        bail!(ident.span() => "`const` may only be used once");
+                    }
+
+                    out.konst = true;
                 }
             }
 

@@ -1,3 +1,5 @@
+use quote::ToTokens;
+
 pub(crate) struct Replace<I: Iterator + Sized> {
     iter: std::iter::Enumerate<I>,
     value: Option<<I as Iterator>::Item>,
@@ -27,6 +29,19 @@ impl<I: Iterator> ReplaceTrait for I {
             iter: self.enumerate(),
             value: Some(value),
             i: index,
+        }
+    }
+}
+
+pub struct OptionalToken<T>(pub Option<T>);
+
+impl<T> ToTokens for OptionalToken<T>
+where
+    T: ToTokens,
+{
+    fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
+        if let Some(t) = &self.0 {
+            t.to_tokens(tokens)
         }
     }
 }
