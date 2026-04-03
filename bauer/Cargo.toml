@@ -1,0 +1,20 @@
+[package]
+name = "bauer"
+version.workspace = true
+edition.workspace = true
+description = "A derive macro for automatically generating the builder pattern"
+categories = ["rust-patterns", "development-tools", "data-structures"]
+keywords = ["builder", "constructor", "derive-macro", "type-state", "macro"]
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+readme = "../README.md"
+
+[features]
+unlimited_range = ["bauer-macros/unlimited_range"]
+
+[dependencies]
+bauer-macros.workspace = true
+
+[dev-dependencies]
+trybuild = "1.0.114"

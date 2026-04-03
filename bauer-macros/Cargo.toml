@@ -1,6 +1,13 @@
 [package]
 name = "bauer-macros"
-edition = "2024"
+version.workspace = true
+edition.workspace = true
+description = "Macro implementation for the `bauer` crate.  This should only be accessed through the `bauer` crate."
+categories = []
+keywords = []
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
 
 [features]
 unlimited_range = []

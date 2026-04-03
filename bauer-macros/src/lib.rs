@@ -18,8 +18,7 @@ mod util;
 /// # Usage
 ///
 /// ```
-/// use bauer::Builder;
-///
+/// # use bauer_macros::Builder;
 /// #[derive(Builder)]
 /// pub struct Foo {
 ///     #[builder(default = "42")]
@@ -65,7 +64,7 @@ mod util;
 /// The builder functions consume and generate owned values
 ///
 /// ```
-/// # use bauer::Builder;
+/// # use bauer_macros::Builder;
 /// #[derive(Builder)]
 /// #[builder(kind = "owned")]
 /// pub struct Foo {
@@ -85,7 +84,7 @@ mod util;
 /// _Note: After calling `.build()`, the builder is reset_
 ///
 /// ```
-/// # use bauer::Builder;
+/// # use bauer_macros::Builder;
 /// #[derive(Builder)]
 /// #[builder(kind = "borrowed")]
 /// pub struct Foo {
@@ -110,7 +109,7 @@ mod util;
 /// the final structure is infallible.
 ///
 /// ```compile_fail
-/// # use bauer::Builder;
+/// # use bauer_macros::Builder;
 /// #[derive(Builder)]
 /// #[builder(kind = "type-state")]
 /// pub struct Foo {
@@ -129,7 +128,7 @@ mod util;
 /// Set the prefix or suffix for the generated builder functions
 ///
 /// ```
-/// # use bauer::Builder;
+/// # use bauer_macros::Builder;
 /// #[derive(Builder)]
 /// #[builder(prefix = "set_")]
 /// pub struct Foo {
@@ -152,7 +151,7 @@ mod util;
 /// module.
 ///
 /// ```
-/// # use bauer::Builder;
+/// # use bauer_macros::Builder;
 /// #[derive(Builder)]
 /// #[builder(visibility = pub(crate))]
 /// pub struct Foo {
@@ -168,7 +167,7 @@ mod util;
 /// dependency in your `Cargo.toml`
 ///
 /// ```
-/// # use bauer::Builder;
+/// # use bauer_macros::Builder;
 /// #[derive(Builder)]
 /// #[builder(crate = not_bauer)]
 /// pub struct Foo {
@@ -186,7 +185,7 @@ mod util;
 /// If not value is provided to the `default` attribute, then [`Default::default`] will be used.
 ///
 /// ```
-/// # use bauer::Builder;
+/// # use bauer_macros::Builder;
 /// # const _: &str = stringify!(
 /// #[derive(Builder)]
 /// # );
@@ -215,7 +214,7 @@ mod util;
 /// can be specified using `repeat = <type>`.
 ///
 /// ```
-/// # use bauer::Builder;
+/// # use bauer_macros::Builder;
 /// # const _: &str = stringify!(
 /// #[derive(Builder)]
 /// # );
@@ -266,7 +265,7 @@ mod util;
 /// `unlimited_range` feature.
 ///
 /// ```
-/// # use bauer::Builder;
+/// # use bauer_macros::Builder;
 /// # const _: &str = stringify!(
 /// #[derive(Builder)]
 /// # );
@@ -296,7 +295,7 @@ mod util;
 /// Make the function that is generated use a different name from field itself.
 ///
 /// ```
-/// # use bauer::Builder;
+/// # use bauer_macros::Builder;
 /// # const _: &str = stringify!(
 /// #[derive(Builder)]
 /// # );
@@ -319,7 +318,7 @@ mod util;
 /// of this function.  This is epecially useful with `rename`.
 ///
 /// ```
-/// # use bauer::Builder;
+/// # use bauer_macros::Builder;
 /// # const _: &str = stringify!(
 /// #[derive(Builder)]
 /// # );
@@ -342,7 +341,7 @@ mod util;
 /// Make the method accept anything can be turned into the field.
 ///
 /// ```
-/// # use bauer::Builder;
+/// # use bauer_macros::Builder;
 /// # const _: &str = stringify!(
 /// #[derive(Builder)]
 /// # );
@@ -370,7 +369,7 @@ mod util;
 /// Note: If used with `repeat`, `repeat` must come before `tuple`.
 ///
 /// ```
-/// # use bauer::Builder;
+/// # use bauer_macros::Builder;
 /// #[derive(Builder)]
 /// pub struct Foo {
 ///     #[builder(tuple)]
@@ -402,7 +401,7 @@ mod util;
 /// Conflicts with `into` and `tuple`.
 ///
 /// ```
-/// # use bauer::Builder;
+/// # use bauer_macros::Builder;
 /// # const _: &str = stringify!(
 /// #[derive(Builder)]
 /// # );

@@ -5,6 +5,7 @@ use quote::{format_ident, quote};
 use strum::{IntoStaticStr, VariantArray};
 use syn::{
     Ident, LitStr, Token, Visibility,
+    ext::IdentExt,
     parse::{Parse, ParseStream},
     parse_quote,
 };
@@ -52,7 +53,7 @@ impl Parse for Kind {
     }
 }
 
-#[derive(Clone, Copy, VariantArray, IntoStaticStr)]
+#[derive(Clone, Copy, VariantArray, IntoStaticStr, Debug, PartialEq, Eq)]
 #[strum(serialize_all = "snake_case")]
 enum Attribute {
     Kind,
@@ -149,8 +150,8 @@ impl BuilderAttr {
         let mut vis_set = false;
         let mut crate_set = false;
 
-        while input.peek(syn::Ident) {
-            let ident = input.parse()?;
+        while input.peek(Ident) || input.peek(Token![crate]) {
+            let ident = Ident::parse_any(input)?;
             match Attribute::parse(&ident)? {
                 Attribute::Kind => {
                     if kind_set {
