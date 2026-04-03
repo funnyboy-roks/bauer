@@ -1,0 +1,5 @@
+error: `repeat_n` may not be used on arrays.
+ --> tests/ui/array-repeat-n.fail.rs:5:23
+  |
+5 |     #[builder(repeat, repeat_n = 3)]
+  |                       ^^^^^^^^
