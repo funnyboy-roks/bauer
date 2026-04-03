@@ -674,6 +674,7 @@ pub fn builder(input: TokenStream) -> TokenStream {
     quote! {
         #build_err_enum
 
+        #[must_use = "The builder doesn't construct its type until `.build()` is called"]
         #builder_vis struct #builder #impl_generics {
             #[deprecated = "This field is for internal use only; You almost certainly don't need to touch this. If you encounter a bug or missing feature, file an issue on the repo."]
             #[doc(hidden)]

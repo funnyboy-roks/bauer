@@ -312,6 +312,7 @@ pub fn type_state_builder(
 
     out.extend(quote! {
         #[allow(clippy::type_complexity)]
+        #[must_use = "The builder doesn't construct its type until `.build()` is called"]
         #builder_vis struct #builder #struct_generics #where_clause {
             #[deprecated = "This field is for internal use only; you almost certainly don't need to touch this. If you encounter a bug or missing feature, file an issue on the repo."]
             #[doc(hidden)]

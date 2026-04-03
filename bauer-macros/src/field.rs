@@ -257,27 +257,22 @@ impl BuilderField {
 
         let field_i = self.tuple_index();
 
-        if self.attr.repeat.is_some() {
-            quote! {
-                #(#doc)*
-                #builder_vis fn #fn_ident(#self_param, #args) -> #return_type {
-                    #[allow(deprecated)] // #inner is set to deprecated
-                    {
-                        self.#inner.#field_i.push(#value);
-                        self
-                    }
-                }
-            }
+        let setter = if self.attr.repeat.is_some() {
+            quote! { self.#inner.#field_i.push(value) }
         } else {
-            quote! {
-                #(#doc)*
+            quote! { self.#inner.#field_i = Some(value) }
+        };
+
+        quote! {
+            #(#doc)*
+                #[must_use = "The builder doesn't construct its type until `.build()` is called"]
                 #builder_vis fn #fn_ident(#self_param, #args) -> #return_type {
+                    let value = #value;
                     #[allow(deprecated)] // #inner is set to deprecated
                     {
-                        self.#inner.#field_i = Some(#value);
-                        self
+                        #setter;
                     }
-                }
+                    self
             }
         }
     }
