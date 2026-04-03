@@ -499,7 +499,7 @@ pub fn builder(input: TokenStream) -> TokenStream {
     };
 
     if attr.kind == Kind::TypeState {
-        return type_state::type_state_builder(&attr, &input, &fields_named).into();
+        return type_state::type_state_builder(&attr, &input, fields_named).into();
     }
 
     let private_module = attr.private_module();
@@ -602,7 +602,7 @@ pub fn builder(input: TokenStream) -> TokenStream {
             }
         } else if field.wrapped_option {
             quote! {
-                #name: self.#inner.#field_i
+                #name: self.#inner.#field_i.take()
             }
         } else if let Some(default) = &field.attr.default {
             if let Some(default) = default {
@@ -692,7 +692,7 @@ pub fn builder(input: TokenStream) -> TokenStream {
 
     let into_impl = if build_err_variants.is_empty() {
         quote! {
-            impl #impl_generics ::core::convert::From<#builder #ty_generics> for #ident #ty_generics {
+            impl #impl_generics ::core::convert::From<#builder #ty_generics> for #ident #ty_generics #where_clause {
                 fn from(mut builder: #builder #ty_generics) -> Self {
                     builder.build()
                 }
@@ -700,7 +700,7 @@ pub fn builder(input: TokenStream) -> TokenStream {
         }
     } else {
         quote! {
-            impl #impl_generics ::core::convert::TryFrom<#builder #ty_generics> for #ident #ty_generics {
+            impl #impl_generics ::core::convert::TryFrom<#builder #ty_generics> for #ident #ty_generics #where_clause {
                 type Error = #build_err;
 
                 fn try_from(mut builder: #builder #ty_generics) -> Result<Self, Self::Error> {
@@ -714,7 +714,7 @@ pub fn builder(input: TokenStream) -> TokenStream {
         #build_err_enum
 
         #[must_use = "The builder doesn't construct its type until `.build()` is called"]
-        #builder_vis struct #builder #impl_generics {
+        #builder_vis struct #builder #impl_generics #where_clause {
             #[deprecated = "This field is for internal use only; You almost certainly don't need to touch this. If you encounter a bug or missing feature, file an issue on the repo."]
             #[doc(hidden)]
             #inner: (#(#fields,)*),

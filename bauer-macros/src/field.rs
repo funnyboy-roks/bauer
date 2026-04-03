@@ -179,6 +179,7 @@ impl Attribute {
     }
 }
 
+#[derive(Debug)]
 pub struct FieldIdents {
     pub pascal: Ident,
     pub set: Ident,
@@ -196,6 +197,7 @@ impl FieldIdents {
     }
 }
 
+#[derive(Debug)]
 pub struct BuilderField {
     pub ident: Ident,
     pub ty: Type,
@@ -575,6 +577,7 @@ impl TryFrom<syn::Pat> for Len {
     }
 }
 
+#[derive(Debug)]
 pub struct Repeat {
     pub inner_ty: Type,
     pub len: Len,
@@ -632,7 +635,7 @@ impl Parse for Adapter {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct FieldAttr {
     /// Some(Some(expr)) -> default is expr
     /// Some(None)       -> default is Default::default()
