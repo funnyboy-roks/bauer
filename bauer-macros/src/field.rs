@@ -11,7 +11,7 @@ use syn::{
     token::Paren,
 };
 
-use crate::{BuilderAttr, Kind};
+use crate::{BuilderAttr, Kind, util::escape_ident};
 
 pub(crate) fn get_single_generic<'a>(ty: &'a Type, name: Option<&str>) -> Option<&'a Type> {
     match ty {
@@ -231,16 +231,6 @@ impl BuilderField {
         self.wrapped_option || self.attr.default.is_some()
     }
 
-    // Taken from https://docs.rs/syn/latest/src/syn/token.rs.html#692-746
-    const KEYWORDS: &[&'static str] = &[
-        "abstract", "as", "async", "auto", "await", "become", "box", "break", "const", "continue",
-        "crate", "default", "do", "dyn", "else", "enum", "extern", "final", "fn", "for", "if",
-        "impl", "in", "let", "loop", "macro", "match", "mod", "move", "mut", "override", "priv",
-        "pub", "raw", "ref", "return", "Self", "self", "static", "struct", "super", "trait", "try",
-        "type", "typeof", "union", "unsafe", "unsized", "use", "virtual", "where", "while",
-        "yield",
-    ];
-
     pub fn function_ident(&self, builder_attr: &BuilderAttr) -> Ident {
         let ident = self.attr.rename.as_ref().unwrap_or(&self.ident);
         let prefix = if self.attr.skip_prefix {
@@ -255,15 +245,13 @@ impl BuilderField {
             &builder_attr.suffix
         };
 
-        let mut ident = format_ident!("{}{}{}", prefix, ident, suffix, span = ident.span());
-        // hack to escape idents
-        for kw in Self::KEYWORDS {
-            if ident == kw {
-                ident = format_ident!("r#{}", ident);
-                break;
-            }
-        }
-        ident
+        escape_ident(format_ident!(
+            "{}{}{}",
+            prefix,
+            ident,
+            suffix,
+            span = ident.span()
+        ))
     }
 
     pub(crate) fn function(&self, builder_attr: &BuilderAttr, inner: &Ident) -> TokenStream {

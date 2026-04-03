@@ -1,4 +1,10 @@
-use quote::ToTokens;
+use std::collections::HashSet;
+
+use proc_macro2::TokenTree;
+use quote::{ToTokens, format_ident, quote};
+use syn::{DeriveInput, Ident};
+
+use crate::BuilderField;
 
 pub(crate) struct Replace<I: Iterator + Sized> {
     iter: std::iter::Enumerate<I>,
@@ -43,5 +49,63 @@ where
         if let Some(t) = &self.0 {
             t.to_tokens(tokens)
         }
+    }
+}
+
+fn is_keyword(ident: &Ident) -> bool {
+    // Taken from https://docs.rs/syn/latest/src/syn/token.rs.html#692-746
+    const KEYWORDS: &[&str] = &[
+        "abstract", "as", "async", "auto", "await", "become", "box", "break", "const", "continue",
+        "crate", "default", "do", "dyn", "else", "enum", "extern", "final", "fn", "for", "if",
+        "impl", "in", "let", "loop", "macro", "match", "mod", "move", "mut", "override", "priv",
+        "pub", "raw", "ref", "return", "Self", "self", "static", "struct", "super", "trait", "try",
+        "type", "typeof", "union", "unsafe", "unsized", "use", "virtual", "where", "while",
+        "yield",
+    ];
+
+    KEYWORDS.iter().any(|kw| ident == kw)
+}
+
+pub fn escape_ident(ident: Ident) -> Ident {
+    if is_keyword(&ident) {
+        format_ident!("r#{}", ident)
+    } else {
+        ident
+    }
+}
+
+fn extract_idents(tt: &TokenTree, out: &mut HashSet<String>) {
+    match tt {
+        TokenTree::Group(group) => {
+            for tt in group.stream() {
+                extract_idents(&tt, out);
+            }
+        }
+        TokenTree::Ident(ident) => {
+            out.insert(ident.to_string());
+        }
+        TokenTree::Punct(_) => {}
+        TokenTree::Literal(_) => {}
+    }
+}
+
+// kind of hacky, but it works :shrug:
+pub fn known_idents(input: &DeriveInput, fields: &[BuilderField]) -> HashSet<String> {
+    let mut out = HashSet::new();
+    let (impl_gen, ty_gen, where_clause) = input.generics.split_for_impl();
+    let mut ts = quote! { #impl_gen, #ty_gen, #where_clause };
+    for x in fields {
+        x.ty.to_tokens(&mut ts);
+    }
+    for t in ts {
+        extract_idents(&t, &mut out);
+    }
+
+    out
+}
+
+pub fn ensure_no_conflict(ident: &mut Ident, known: &HashSet<String>) {
+    while known.contains(&ident.to_string()) {
+        *ident = format_ident!("_{}", *ident);
     }
 }

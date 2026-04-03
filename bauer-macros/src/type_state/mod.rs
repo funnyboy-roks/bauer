@@ -1,6 +1,6 @@
-use std::collections::{HashMap, HashSet, hash_map::Entry};
+use std::collections::{HashMap, hash_map::Entry};
 
-use proc_macro2::{TokenStream, TokenTree};
+use proc_macro2::TokenStream;
 use quote::{ToTokens, format_ident, quote, quote_spanned};
 use syn::{DeriveInput, Ident, Token, Type, TypePath, parse_quote, spanned::Spanned};
 
@@ -8,7 +8,7 @@ use crate::{
     BuilderAttr, BuilderField, Len, Repeat,
     field::FieldIdents,
     type_state::generics::{CustomImplGenerics, CustomTypeGenerics},
-    util::ReplaceTrait,
+    util::{ReplaceTrait, ensure_no_conflict, known_idents},
 };
 
 mod generics;
@@ -179,36 +179,6 @@ fn build_fn(
     }
 }
 
-fn extract_idents(tt: &TokenTree, out: &mut HashSet<String>) {
-    match tt {
-        TokenTree::Group(group) => {
-            for tt in group.stream() {
-                extract_idents(&tt, out);
-            }
-        }
-        TokenTree::Ident(ident) => {
-            out.insert(ident.to_string());
-        }
-        TokenTree::Punct(_) => {}
-        TokenTree::Literal(_) => {}
-    }
-}
-
-// kind of hacky, but it works :shrug:
-fn known_idents(input: &DeriveInput, fields: &[BuilderField]) -> HashSet<String> {
-    let mut out = HashSet::new();
-    let (impl_gen, ty_gen, where_clause) = input.generics.split_for_impl();
-    let mut ts = quote! { #impl_gen, #ty_gen, #where_clause };
-    for x in fields {
-        x.ty.to_tokens(&mut ts);
-    }
-    for t in ts {
-        extract_idents(&t, &mut out);
-    }
-
-    out
-}
-
 pub fn type_state_builder(
     builder_attr: &BuilderAttr,
     input: &DeriveInput,
@@ -220,15 +190,9 @@ pub fn type_state_builder(
 
     let known_idents = known_idents(input, &fields);
     for f in &mut fields {
-        while known_idents.contains(&f.idents.pascal.to_string()) {
-            f.idents.pascal = format_ident!("_{}", f.idents.pascal);
-        }
-        while known_idents.contains(&f.idents.set.to_string()) {
-            f.idents.pascal = format_ident!("_{}", f.idents.pascal);
-        }
-        while known_idents.contains(&f.idents.count.to_string()) {
-            f.idents.pascal = format_ident!("_{}", f.idents.pascal);
-        }
+        ensure_no_conflict(&mut f.idents.pascal, &known_idents);
+        ensure_no_conflict(&mut f.idents.set, &known_idents);
+        ensure_no_conflict(&mut f.idents.count, &known_idents);
     }
 
     let generic_fields: Vec<_> = fields
