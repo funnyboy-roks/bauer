@@ -207,14 +207,14 @@ pub fn type_state_builder(
                 #[doc(hidden)]
                 #[allow(non_camel_case_types)]
                 #[non_exhaustive]
-                struct #count<T>(T); // never constructed, so doesn't really need to be PhantomData
+                #builder_vis struct #count<T>(T); // never constructed, so doesn't really need to be PhantomData
             }
         } else {
             quote! {
                 #[doc(hidden)]
                 #[allow(non_camel_case_types)]
                 #[non_exhaustive]
-                struct #set<const SET: bool>;
+                #builder_vis struct #set<const SET: bool>;
                 impl<const SET: bool> #private_module::sealed::Sealed for #set<SET> {}
                 impl<const SET: bool> #private_module::state::BuilderState for #set<SET> {
                     const SET: bool = SET;
