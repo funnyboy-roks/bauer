@@ -34,16 +34,25 @@ fn build_fn(
         if let Some(Repeat {
             inner_ty,
             len: Len::Int(_),
-            ..
+            array,
         }) = &field.attr.repeat
         {
+            let value = if *array {
+                quote! {
+                    array
+                }
+            } else {
+                quote! {
+                    ::core::iter::FromIterator::from_iter(array.into_iter())
+                }
+            };
             quote_spanned! {
                 inner_ty.span() =>
                 #name: {
                     // SAFETY: The build function can only be called once the array has been
                     // filled and is fully initialised.
                     let array = unsafe { inner.#field_i.assume_init() };
-                    ::core::iter::FromIterator::from_iter(array.into_iter())
+                    #value
                 }
             }
         } else if let Some(Repeat { inner_ty, .. }) = &field.attr.repeat {
@@ -217,7 +226,6 @@ pub fn type_state_builder(
     }));
 
     let mut len_structs = HashMap::new();
-
     let mut len_traits = HashMap::<Len, Ident>::new();
 
     for (i, &f) in generic_fields.iter().enumerate() {

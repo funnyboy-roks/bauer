@@ -13,8 +13,8 @@ struct Point {
 #[derive(Debug, Builder)]
 #[builder(kind = "type-state")]
 struct Foo {
-    #[builder(repeat, repeat_n = 3)]
-    field_a: Vec<u32>,
+    #[builder(repeat)]
+    field_a: [u8; 3],
     #[builder(into)]
     other: Point,
 }

@@ -478,9 +478,22 @@ pub fn builder(input: TokenStream) -> TokenStream {
         }
     };
 
+    let private_module = attr.private_module();
     let fields = fields_named.iter().map(|f| {
-        if let Some(Repeat { inner_ty, .. }) = &f.attr.repeat {
-            quote! { ::std::vec::Vec<#inner_ty> }
+        if let Some(Repeat {
+            inner_ty,
+            array,
+            len,
+        }) = &f.attr.repeat
+        {
+            if *array {
+                let Len::Raw { pattern, .. } = &len else {
+                    unreachable!("If array, then Len::Raw set");
+                };
+                quote! { #private_module::PushableArray<#pattern, #inner_ty> }
+            } else {
+                quote! { ::std::vec::Vec<#inner_ty> }
+            }
         } else {
             let ty = &f.ty;
             quote! { ::core::option::Option<#ty> }
@@ -529,18 +542,27 @@ pub fn builder(input: TokenStream) -> TokenStream {
         let name = &field.ident;
         let field_i = field.tuple_index();
 
-        if let Some(Repeat { inner_ty, len, .. }) = &field.attr.repeat {
-            if let Len::Raw { pattern, error } = len {
-                quote_spanned! {
-                    pattern.span() =>
+        if let Some(rep @ Repeat { inner_ty, .. }) = &field.attr.repeat {
+            if let Len::Raw { pattern, error } = &rep.len {
+                let value = if rep.array {
+                    quote_spanned! { inner_ty.span()=> {
+                        let arr = ::core::mem::take(&mut self.#inner.#field_i);
+                        arr.into_array()
+                            .expect("The match ensures the length of this array is correct")
+                    }}
+                } else {
+                    quote_spanned! { inner_ty.span()=>
+                        self.#inner.#field_i.drain(..).collect()
+                    }
+                };
+                quote_spanned! { pattern.span()=>
                     #name: match self.#inner.#field_i.len() {
-                        #pattern => self.#inner.#field_i.drain(..).collect(),
+                        #pattern => #value, // TODO: Take and then slice.try_into()
                         len => return Err(#build_err::#error(len)),
                     }
                 }
             } else {
-                quote_spanned! {
-                    inner_ty.span() =>
+                quote_spanned! { inner_ty.span()=>
                     // using associated function syntax as that gives better error messages
                     // (i.e., not "call chain may not have expected associated type"
                     #name: ::std::iter::FromIterator::from_iter(self.#inner.#field_i.drain(..))

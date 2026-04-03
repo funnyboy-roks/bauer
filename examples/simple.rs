@@ -1,7 +1,7 @@
 use bauer::Builder;
 
 #[derive(Debug, Builder)]
-#[builder(kind = "borrowed", prefix = "set_")]
+#[builder(kind = "owned", prefix = "set_")]
 pub struct Foo {
     /// Hello
     #[builder(default = "42")]
@@ -9,8 +9,8 @@ pub struct Foo {
     pub field_b: bool,
     #[builder(into)]
     pub field_c: String,
-    #[builder(skip_prefix, skip_suffix, rename = "add_d", repeat, repeat_n = 3..)]
-    pub field_d: Vec<f64>,
+    #[builder(skip_prefix, skip_suffix, rename = "add_d", repeat)]
+    pub field_d: [String; 3],
 }
 
 fn main() {
@@ -18,9 +18,9 @@ fn main() {
         .set_field_a(69)
         .set_field_b(true)
         .set_field_c("hello world")
-        .add_d(std::f64::consts::PI)
-        .add_d(std::f64::consts::TAU)
-        .add_d(2.72)
+        .add_d(std::f64::consts::PI.to_string())
+        .add_d(std::f64::consts::TAU.to_string())
+        .add_d(2.72.to_string())
         .build()
         .unwrap();
 

@@ -581,6 +581,7 @@ impl TryFrom<syn::Pat> for Len {
 pub struct Repeat {
     pub inner_ty: Type,
     pub len: Len,
+    pub array: bool,
 }
 
 #[derive(Debug)]
@@ -744,26 +745,52 @@ impl FieldAttr {
                         bail!(ident.span() => "`repeat` cannot be added with `default`");
                     }
 
-                    let inner = if input.peek(Token![=]) {
+                    let (inner, len, array) = if input.peek(Token![=]) {
                         let _: Token![=] = input.parse()?;
                         let s: Type = input.parse()?;
-                        s
+                        (s, Len::None, false)
                     } else {
                         let Some(inner) = get_single_generic(&field.ty, None) else {
                             bail!(field.ty.span() => "Inner type must be specified to repeat on type without generics");
                         };
-                        inner.clone()
+                        if let Type::Array(array) = &field.ty {
+                            let len = &array.len;
+                            let pattern: Pat = parse_quote! { #len };
+
+                            let len = if builder_attr.kind == Kind::TypeState {
+                                let len = Len::try_from(pattern)?;
+                                if let Len::Range { .. } = len {
+                                    unreachable!("Arrays can't have ranges for length");
+                                }
+                                len
+                            } else {
+                                let error = format_ident!(
+                                    "Range{}",
+                                    field_ident.to_string().to_case(Case::Pascal)
+                                );
+                                Len::Raw { pattern, error }
+                            };
+
+                            (inner.clone(), len, true)
+                        } else {
+                            (inner.clone(), Len::None, false)
+                        }
                     };
 
                     out.repeat = Some(Repeat {
                         inner_ty: inner,
-                        len: Len::None,
+                        len,
+                        array,
                     });
                 }
                 Attribute::RepeatN => {
                     let Some(rep) = &mut out.repeat else {
                         bail!(ident.span() => "`repeat_n` may only be used with `repeat`");
                     };
+
+                    if rep.array {
+                        bail!(ident.span() => "`repeat_n` may not be used on arrays.");
+                    }
 
                     if rep.len.is_some() {
                         bail!(ident.span() => "`repeat_n` may only be used once.");
