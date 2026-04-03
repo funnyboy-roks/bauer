@@ -1,279 +1,17 @@
-use std::{
-    collections::{HashMap, hash_map::Entry},
-    ops::Range,
-};
+use std::collections::{HashMap, hash_map::Entry};
 
 use proc_macro2::TokenStream;
 use quote::{ToTokens, format_ident, quote, quote_spanned};
 use syn::{DeriveInput, Ident, Token, Type, TypePath, parse_quote, spanned::Spanned};
 
 use crate::{
-    BuilderAttr, BuilderField, Repeat,
+    BuilderAttr, BuilderField, Len, Repeat,
     field::FieldIdents,
     type_state::generics::{CustomImplGenerics, CustomTypeGenerics},
     util::ReplaceTrait,
 };
 
 mod generics;
-
-macro_rules! bail {
-    ($span: expr => $message: literal $(, $args: expr)*$(,)?) => {
-        return Err(syn::Error::new(
-            $span,
-            format!($message, $($args),*),
-        ))
-    }
-}
-
-fn expanded_tuple(base: TokenStream, depth: usize) -> TokenStream {
-    let mut out = base;
-    for _ in 0..depth {
-        out = quote! { (#out, ()) };
-    }
-    out
-}
-
-#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
-enum Len<'a> {
-    Int(usize),
-    Range {
-        start: usize,
-        end: Option<usize>,
-        inclusive: bool,
-        pat: &'a syn::Pat,
-    },
-}
-
-impl PartialOrd for Len<'_> {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl Ord for Len<'_> {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        match (self, other) {
-            (Len::Int(a), Len::Int(b)) => a.cmp(b),
-            (Len::Int(a), Len::Range { start, .. }) => a.cmp(start),
-            (Len::Range { start, .. }, Len::Int(b)) => start.cmp(b),
-            (
-                Len::Range {
-                    start: a_start,
-                    end: a_end,
-                    ..
-                },
-                Len::Range {
-                    start: b_start,
-                    end: b_end,
-                    ..
-                },
-            ) => a_start.cmp(b_start).then(
-                a_end
-                    .unwrap_or(usize::MAX)
-                    .cmp(&b_end.unwrap_or(usize::MAX)),
-            ),
-        }
-    }
-}
-
-impl Len<'_> {
-    fn range(self) -> Range<usize> {
-        match self {
-            Len::Int(n) => n..n + 1,
-            Len::Range {
-                start, end: None, ..
-            } => start..usize::MAX,
-            Len::Range {
-                start,
-                end: Some(end),
-                inclusive,
-                ..
-            } => start..end + usize::from(inclusive),
-        }
-    }
-
-    fn into_trait(self, out: &mut TokenStream) -> syn::Result<Ident> {
-        match self {
-            Len::Int(len) => {
-                let ident = format_ident!("Eq_{}", len);
-                let expanded = expanded_tuple(quote! { () }, len);
-                out.extend(quote! {
-                    #[allow(non_camel_case_types)]
-                    trait #ident {}
-                    impl #ident for #expanded {}
-                });
-                Ok(ident)
-            }
-            Len::Range {
-                start,
-                end: Some(end),
-                inclusive,
-                #[allow(unused)] // used by the unlimited_range feature section below
-                pat,
-            } => {
-                if start >= end {
-                    bail!(start.span() => "start must be less than end");
-                }
-
-                let range = self.range();
-
-                #[cfg(not(feature = "unlimited_range"))]
-                if range.len() > 64 {
-                    bail!(
-                        pat.span() =>
-                        "Range length is limited to 64 by default as big ranges slow compile-time.  This setting may be overridden with the `unlimited_range` feature.  Alternatively, half-open ranges like `5..` and integer constants are faster"
-                    );
-                }
-
-                let ident = format_ident!(
-                    "Range_{}_{}{}",
-                    start,
-                    end,
-                    if inclusive { "_Inclusive" } else { "" },
-                );
-                out.extend(quote! {
-                    #[allow(non_camel_case_types)]
-                    trait #ident {}
-                });
-
-                for i in range {
-                    let expanded = expanded_tuple(quote! { () }, i);
-                    out.extend(quote! {
-                        impl #ident for #expanded {}
-                    });
-                }
-
-                Ok(ident)
-            }
-            Len::Range {
-                start, end: None, ..
-            } => {
-                let ident = format_ident!("Gte_{}", start);
-                let expanded = expanded_tuple(quote! { T }, start);
-                out.extend(quote! {
-                    #[allow(non_camel_case_types)]
-                    trait #ident {}
-                    impl<T> #ident for #expanded {}
-                });
-                Ok(ident)
-            }
-        }
-    }
-}
-
-impl<'a> TryFrom<&'a syn::Pat> for Len<'a> {
-    type Error = syn::Error;
-
-    fn try_from(pat: &'a syn::Pat) -> Result<Self, Self::Error> {
-        let v = match pat {
-            syn::Pat::Lit(syn::ExprLit {
-                lit: syn::Lit::Int(int),
-                ..
-            }) => {
-                let len = int.base10_parse()?;
-                Len::Int(len)
-            }
-            syn::Pat::Range(syn::ExprRange {
-                start: Some(start),
-                end: Some(end),
-                limits,
-                ..
-            }) => {
-                let start: usize = match &**start {
-                    syn::Expr::Lit(syn::ExprLit {
-                        lit: syn::Lit::Int(start),
-                        ..
-                    }) => start.base10_parse()?,
-                    _ => {
-                        bail!(start.span() => "start must be an integer literal");
-                    }
-                };
-
-                let end: usize = match &**end {
-                    syn::Expr::Lit(syn::ExprLit {
-                        lit: syn::Lit::Int(end),
-                        ..
-                    }) => end.base10_parse()?,
-                    _ => {
-                        bail!(end.span() => "end must be an integer literal");
-                    }
-                };
-
-                match limits {
-                    syn::RangeLimits::HalfOpen(_) => Len::Range {
-                        start,
-                        end: Some(end),
-                        inclusive: false,
-                        pat,
-                    },
-                    syn::RangeLimits::Closed(_) => Len::Range {
-                        start,
-                        end: Some(end),
-                        inclusive: true,
-                        pat,
-                    },
-                }
-            }
-            syn::Pat::Range(syn::ExprRange {
-                start: None,
-                end: Some(end),
-                limits,
-                ..
-            }) => {
-                let end: usize = match &**end {
-                    syn::Expr::Lit(syn::ExprLit {
-                        lit: syn::Lit::Int(end),
-                        ..
-                    }) => end.base10_parse()?,
-                    _ => {
-                        bail!(end.span() => "end must be an integer literal");
-                    }
-                };
-
-                match limits {
-                    syn::RangeLimits::HalfOpen(_) => Len::Range {
-                        start: 0,
-                        end: Some(end),
-                        inclusive: false,
-                        pat,
-                    },
-                    syn::RangeLimits::Closed(_) => Len::Range {
-                        start: 0,
-                        end: Some(end),
-                        inclusive: true,
-                        pat,
-                    },
-                }
-            }
-            syn::Pat::Range(syn::ExprRange {
-                start: Some(start),
-                end: None,
-                ..
-            }) => {
-                let start: usize = match &**start {
-                    syn::Expr::Lit(syn::ExprLit {
-                        lit: syn::Lit::Int(int),
-                        ..
-                    }) => int.base10_parse()?,
-                    _ => {
-                        bail!(start.span() => "start must be an integer literal");
-                    }
-                };
-
-                Len::Range {
-                    start,
-                    end: None,
-                    inclusive: false,
-                    pat,
-                }
-            }
-            _ => {
-                bail!(pat.span() => "repeat_n on type-state builders can only use integer literals and ranges");
-            }
-        };
-        Ok(v)
-    }
-}
 
 fn build_fn(
     builder: &Ident,
@@ -295,32 +33,17 @@ fn build_fn(
 
         if let Some(Repeat {
             inner_ty,
-            len: Some((len_pat, _)),
+            len: Len::Int(_),
             ..
         }) = &field.attr.repeat
         {
-            let len = match Len::try_from(len_pat) {
-                Ok(v) => v,
-                Err(e) => return e.to_compile_error(),
-            };
-
-            if let Len::Int(_) = len {
-                quote_spanned! {
-                    inner_ty.span() =>
-                    #name: {
-                        // SAFETY: The build function can only be called once the array has been
-                        // filled and is fully initialised.
-                        let array = unsafe { inner.#field_i.assume_init() };
-                        ::core::iter::FromIterator::from_iter(array.into_iter())
-                    }
-                }
-            } else {
-                quote_spanned! {
-                    inner_ty.span() =>
-                    #name: {
-                        let _: &::std::vec::Vec<_> = &inner.#field_i; // assert that the types are correct
-                        ::core::iter::FromIterator::from_iter(inner.#field_i.into_iter())
-                    }
+            quote_spanned! {
+                inner_ty.span() =>
+                #name: {
+                    // SAFETY: The build function can only be called once the array has been
+                    // filled and is fully initialised.
+                    let array = unsafe { inner.#field_i.assume_init() };
+                    ::core::iter::FromIterator::from_iter(array.into_iter())
                 }
             }
         } else if let Some(Repeat { inner_ty, .. }) = &field.attr.repeat {
@@ -501,19 +224,15 @@ pub fn type_state_builder(
         let Some(repeat) = &f.attr.repeat else {
             continue;
         };
-        let Some((len_pat, _)) = &repeat.len else {
+
+        if repeat.len.is_none() {
             continue;
-        };
+        }
 
-        let len = match Len::try_from(len_pat) {
-            Ok(v) => v,
-            Err(e) => return e.to_compile_error(),
-        };
-
-        let ident = match len_traits.entry(len) {
+        let ident = match len_traits.entry(repeat.len.clone()) {
             Entry::Occupied(entry) => entry.get().clone(),
             Entry::Vacant(entry) => {
-                let ident = match len.into_trait(&mut out) {
+                let ident = match repeat.len.to_trait(&mut out) {
                     Ok(i) => i,
                     Err(e) => return e.to_compile_error(),
                 };
@@ -531,19 +250,11 @@ pub fn type_state_builder(
         let ty = &f.ty;
         if let Some(Repeat {
             inner_ty,
-            len: Some((len_pat, _)),
+            len: Len::Int(len),
             ..
         }) = &f.attr.repeat
         {
-            let len = match Len::try_from(len_pat) {
-                Ok(v) => v,
-                Err(e) => return e.to_compile_error(),
-            };
-            if let Len::Int(len) = len {
-                quote! { ::core::mem::MaybeUninit<[#inner_ty; #len]> }
-            } else {
-                quote! { ::std::vec::Vec<#inner_ty> }
-            }
+            quote! { ::core::mem::MaybeUninit<[#inner_ty; #len]> }
         } else if let Some(Repeat { inner_ty, .. }) = &f.attr.repeat {
             quote! { ::std::vec::Vec<#inner_ty> }
         } else if f.wrapped_option {
@@ -555,19 +266,10 @@ pub fn type_state_builder(
 
     let init = fields.iter().map(|f| {
         if let Some(Repeat {
-            len: Some((len_pat, _)),
-            ..
+            len: Len::Int(_), ..
         }) = &f.attr.repeat
         {
-            let len = match Len::try_from(len_pat) {
-                Ok(v) => v,
-                Err(e) => return e.to_compile_error(),
-            };
-            if let Len::Int(_) = len {
-                quote! { ::core::mem::MaybeUninit::uninit() }
-            } else {
-                quote! { ::std::vec::Vec::new() }
-            }
+            quote! { ::core::mem::MaybeUninit::uninit() }
         } else if let Some(Repeat { .. }) = &f.attr.repeat {
             quote! { ::std::vec::Vec::new() }
         } else if f.wrapped_option {
@@ -655,7 +357,7 @@ pub fn type_state_builder(
 
         let field_i = f.tuple_index();
         let fun = match &f.attr.repeat {
-            Some(Repeat { len: None, .. }) => {
+            Some(Repeat { len: Len::None, .. }) => {
                 let impl_generics = CustomImplGenerics::new(
                     &input.generics,
                     generic_fields.iter().map(|f| &f.idents.pascal),
@@ -684,10 +386,7 @@ pub fn type_state_builder(
                     }
                 }
             }
-            Some(Repeat {
-                len: Some((len_pat, _)),
-                ..
-            }) => {
+            Some(Repeat { len, .. }) => {
                 let FieldIdents { count, pascal, .. } = &generic_fields[i].idents;
 
                 let impl_generics = CustomImplGenerics::new(
@@ -719,10 +418,6 @@ pub fn type_state_builder(
                     <Token![where]>::default().to_tokens(&mut field_where);
                 }
 
-                let len = match Len::try_from(len_pat) {
-                    Ok(v) => v,
-                    Err(e) => return e.to_compile_error(),
-                };
                 let add = if let Len::Int(_) = len {
                     field_where.extend(quote! {
                         #private_module::state::Count::<#pascal>: #private_module::state::Countable,

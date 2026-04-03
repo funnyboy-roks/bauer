@@ -5,7 +5,7 @@ use syn::{DeriveInput, parse::ParseStream, parse_macro_input, spanned::Spanned};
 
 use crate::{
     builder::{BuilderAttr, Kind},
-    field::{BuilderField, Repeat},
+    field::{BuilderField, Len, Repeat},
 };
 
 mod builder;
@@ -460,7 +460,7 @@ pub fn builder(input: TokenStream) -> TokenStream {
             .named
             .iter()
             .enumerate()
-            .map(|(index, f)| BuilderField::parse(f, ident, index))
+            .map(|(index, f)| BuilderField::parse(f, &attr, ident, index))
             .collect::<Result<_, _>>()
         {
             Ok(v) => v,
@@ -508,16 +508,16 @@ pub fn builder(input: TokenStream) -> TokenStream {
                 ));
             }
             if let Some(Repeat {
-                len: Some((len, err)),
+                len: Len::Raw { pattern, error },
                 ..
             }) = &f.attr.repeat
             {
                 variants.push((
                     quote! {
-                        #err(usize)
+                        #error(usize)
                     },
                     quote!{
-                        Self::#err(n) => write!(f, "Invalid number of repeat arguments provided.  Expected {:?}, got {}", #len, n)
+                        Self::#error(n) => write!(f, "Invalid number of repeat arguments provided.  Expected {:?}, got {}", #pattern, n)
                     },
                 ));
             }
@@ -530,12 +530,12 @@ pub fn builder(input: TokenStream) -> TokenStream {
         let field_i = field.tuple_index();
 
         if let Some(Repeat { inner_ty, len, .. }) = &field.attr.repeat {
-            if let Some((range, err)) = len {
+            if let Len::Raw { pattern, error } = len {
                 quote_spanned! {
-                    range.span() =>
+                    pattern.span() =>
                     #name: match self.#inner.#field_i.len() {
-                        #range => self.#inner.#field_i.drain(..).collect(),
-                        len => return Err(#build_err::#err(len)),
+                        #pattern => self.#inner.#field_i.drain(..).collect(),
+                        len => return Err(#build_err::#error(len)),
                     }
                 }
             } else {
