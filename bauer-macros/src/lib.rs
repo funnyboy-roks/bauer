@@ -673,6 +673,7 @@ pub fn builder(input: TokenStream) -> TokenStream {
     } else {
         quote! {
             #[derive(::std::fmt::Debug, ::std::cmp::PartialEq, ::std::cmp::Eq)]
+            #[allow(enum_variant_names)]
             #builder_vis enum #build_err {
                 #(#build_err_variants),*
             }

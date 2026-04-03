@@ -288,19 +288,21 @@ impl BuilderField {
         index: usize,
     ) -> syn::Result<Self> {
         let ident = value.ident.as_ref().expect("We only support named fields");
-        let attr: FieldAttr = if let Some(attr) =
-            value.attrs.iter().find(|a| a.path().is_ident("builder"))
-        {
-            attr.parse_args_with(|input: ParseStream| FieldAttr::parse(input, builder_attr, value))?
-        } else {
-            FieldAttr::default()
-        };
 
         let (ty, wrapped_option) = if let Some(ty) = get_single_generic(&value.ty, Some("Option")) {
             (ty, true)
         } else {
             (&value.ty, false)
         };
+
+        let attr: FieldAttr =
+            if let Some(attr) = value.attrs.iter().find(|a| a.path().is_ident("builder")) {
+                attr.parse_args_with(|input: ParseStream| {
+                    FieldAttr::parse(input, builder_attr, value, wrapped_option)
+                })?
+            } else {
+                FieldAttr::default()
+            };
 
         let doc: Vec<syn::Attribute> = value
             .attrs
@@ -318,7 +320,7 @@ impl BuilderField {
         Ok(BuilderField {
             ident: ident.clone(),
             ty: ty.clone(),
-            missing_err: if attr.default.is_none() && attr.repeat.is_none() {
+            missing_err: if attr.default.is_none() && attr.repeat.is_none() && !wrapped_option {
                 let mut ident = format_ident!("Missing{}", ident.to_string().to_case(Case::Pascal));
                 ident.set_span(value.ident.as_ref().unwrap().span());
                 Some(ident)
@@ -692,6 +694,7 @@ impl FieldAttr {
         input: syn::parse::ParseStream,
         builder_attr: &BuilderAttr,
         field: &Field,
+        wrapped_option: bool,
     ) -> syn::Result<Self> {
         let mut out = FieldAttr::default();
         let field_ident = field.ident.as_ref().unwrap();
@@ -706,6 +709,10 @@ impl FieldAttr {
 
                     if out.repeat.is_some() {
                         bail!(ident.span() => "`default` cannot be added with `repeat`");
+                    }
+
+                    if wrapped_option {
+                        bail!(ident.span() => "`default` may not be used on `Option` fields");
                     }
 
                     let value: Option<Expr> = if input.peek(Token![=]) {

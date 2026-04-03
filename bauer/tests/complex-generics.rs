@@ -1,5 +1,7 @@
 // Adapted from https://github.com/welf/type-state-builder/blob/main/tests/complex_generics_integration.rs
 
+#![allow(unused)]
+
 macro_rules! define {
     ($kind: literal) => {
         // Test multiple generic parameters with bounds
