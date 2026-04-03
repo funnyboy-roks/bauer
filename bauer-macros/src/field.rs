@@ -708,7 +708,7 @@ impl FieldAttr {
             match Attribute::parse(&ident)? {
                 Attribute::Default => {
                     if out.default.is_some() {
-                        bail!(ident.span() => "`default` may only be used once.");
+                        bail!(ident.span() => "`default` may only be used once");
                     }
 
                     if out.repeat.is_some() {
@@ -727,7 +727,7 @@ impl FieldAttr {
                 }
                 Attribute::Into => {
                     if out.into {
-                        bail!(ident.span() => "`into` may only be used once.");
+                        bail!(ident.span() => "`into` may only be used once");
                     }
 
                     if out.adapter.is_some() {
@@ -738,7 +738,7 @@ impl FieldAttr {
                 }
                 Attribute::Repeat => {
                     if out.repeat.is_some() {
-                        bail!(ident.span() => "`repeat` may only be used once.");
+                        bail!(ident.span() => "`repeat` may only be used once");
                     }
 
                     if out.default.is_some() {
@@ -746,6 +746,10 @@ impl FieldAttr {
                     }
 
                     let (inner, len, array) = if input.peek(Token![=]) {
+                        if let Type::Array(_) = &field.ty {
+                            bail!(ident.span() => "`repeat` cannot be used with a type on arrays");
+                        }
+
                         let _: Token![=] = input.parse()?;
                         let s: Type = input.parse()?;
                         (s, Len::None, false)
@@ -753,6 +757,7 @@ impl FieldAttr {
                         let Some(inner) = get_single_generic(&field.ty, None) else {
                             bail!(field.ty.span() => "Inner type must be specified to repeat on type without generics");
                         };
+
                         if let Type::Array(array) = &field.ty {
                             let len = &array.len;
                             let pattern: Pat = parse_quote! { #len };
@@ -789,11 +794,11 @@ impl FieldAttr {
                     };
 
                     if rep.array {
-                        bail!(ident.span() => "`repeat_n` may not be used on arrays.");
+                        bail!(ident.span() => "`repeat_n` may not be used on arrays");
                     }
 
                     if rep.len.is_some() {
-                        bail!(ident.span() => "`repeat_n` may only be used once.");
+                        bail!(ident.span() => "`repeat_n` may only be used once");
                     }
 
                     let _: Token![=] = input.parse()?;
@@ -813,7 +818,7 @@ impl FieldAttr {
                 }
                 Attribute::Rename => {
                     if out.rename.is_some() {
-                        bail!(ident.span() => "`rename` may only be used once.");
+                        bail!(ident.span() => "`rename` may only be used once");
                     }
 
                     let _: Token![=] = input.parse()?;
@@ -823,19 +828,19 @@ impl FieldAttr {
                 }
                 Attribute::SkipPrefix => {
                     if out.skip_prefix {
-                        bail!(ident.span() => "`skip_prefix` may only be used once.");
+                        bail!(ident.span() => "`skip_prefix` may only be used once");
                     }
                     out.skip_prefix = true;
                 }
                 Attribute::SkipSuffix => {
                     if out.skip_suffix {
-                        bail!(ident.span() => "`skip_suffix` may only be used once.");
+                        bail!(ident.span() => "`skip_suffix` may only be used once");
                     }
                     out.skip_suffix = true;
                 }
                 Attribute::Tuple => {
                     if out.tuple.is_some() {
-                        bail!(ident.span() => "`tuple` may only be used once.");
+                        bail!(ident.span() => "`tuple` may only be used once");
                     }
 
                     if out.adapter.is_some() {
@@ -877,7 +882,7 @@ impl FieldAttr {
                 }
                 Attribute::Adapter => {
                     if out.adapter.is_some() {
-                        bail!(ident.span() => "`adapter` may only be used once.");
+                        bail!(ident.span() => "`adapter` may only be used once");
                     }
 
                     if out.tuple.is_some() {

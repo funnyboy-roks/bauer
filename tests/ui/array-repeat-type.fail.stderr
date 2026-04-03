@@ -1,0 +1,5 @@
+error: `repeat` cannot be used with a type on arrays
+ --> tests/ui/array-repeat-type.fail.rs:5:15
+  |
+5 |     #[builder(repeat = u8)]
+  |               ^^^^^^
