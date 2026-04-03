@@ -162,3 +162,84 @@ fn lifetimes() {
 
     drop(a_string);
 }
+
+// adapted from https://github.com/welf/type-state-builder/blob/main/tests/associated_type_test.rs
+#[test]
+fn associated_types() {
+    trait Trait {
+        type Default: Default;
+        type From: From<u32>;
+        type Repeat: FromIterator<char>;
+    }
+
+    #[derive(Debug, PartialEq, Eq)]
+    struct Inner;
+    impl Trait for Inner {
+        type Default = String;
+        type From = u64;
+        type Repeat = Vec<char>;
+    }
+
+    macro_rules! define {
+        ($name: ident, $kind: literal) => {
+            #[derive(Debug, Builder, PartialEq)]
+            #[builder(kind = $kind)]
+            struct $name<T: Trait> {
+                #[builder(default)]
+                default: T::Default,
+                #[builder(into)]
+                from: T::From,
+                #[builder(repeat = char)]
+                repeat: T::Repeat,
+            }
+        };
+    }
+
+    macro_rules! populate {
+        ($name: ident with defaults) => {
+            $name::<Inner>::builder().from(3u32).repeat('h').repeat('i')
+        };
+        ($name: ident with values) => {
+            $name::<Inner>::builder()
+                .default(String::from("hello"))
+                .from(3u32)
+                .repeat('h')
+                .repeat('i')
+        };
+    }
+
+    macro_rules! expected {
+        ($name: ident with defaults) => {
+            $name {
+                default: "".to_string(),
+                from: 3u64,
+                repeat: vec!['h', 'i'],
+            }
+        };
+        ($name: ident with values) => {
+            $name {
+                default: "hello".to_string(),
+                from: 3u64,
+                repeat: vec!['h', 'i'],
+            }
+        };
+    }
+
+    define!(FooOwned, "owned");
+    let x = populate!(FooOwned with defaults).build().unwrap();
+    assert_eq!(x, expected!(FooOwned with defaults));
+    let x = populate!(FooOwned with values).build().unwrap();
+    assert_eq!(x, expected!(FooOwned with values));
+
+    define!(FooBorrowed, "borrowed");
+    let x = populate!(FooBorrowed with defaults).build().unwrap();
+    assert_eq!(x, expected!(FooBorrowed with defaults));
+    let x = populate!(FooBorrowed with values).build().unwrap();
+    assert_eq!(x, expected!(FooBorrowed with values));
+
+    define!(FooTypeState, "type-state");
+    let x = populate!(FooTypeState with defaults).build();
+    assert_eq!(x, expected!(FooTypeState with defaults));
+    let x = populate!(FooTypeState with values).build();
+    assert_eq!(x, expected!(FooTypeState with values));
+}
