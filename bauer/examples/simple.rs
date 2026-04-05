@@ -1,10 +1,22 @@
 use bauer::Builder;
 
 #[derive(Debug, Builder)]
-#[builder(kind = "owned", prefix = "set_")]
+#[builder(
+    kind = "owned",
+    prefix = "set_",
+    build_fn_attributes(
+        /// This is a documentation comment :)
+        ///
+        /// With multiple lines!
+    ),
+    attributes(
+        /// This is a documentation comment :)
+        ///
+        /// With multiple lines!
+    )
+)]
 pub struct Foo {
-    /// Hello
-    #[builder(default = "42")]
+    #[builder(default = "42", attributes())]
     pub field_a: u32,
     pub field_b: bool,
     #[builder(into)]

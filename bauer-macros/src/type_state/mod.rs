@@ -157,9 +157,11 @@ fn build_fn(
     let (_, default_ty_generics, _) = input.generics.split_for_impl();
 
     let konst = builder_attr.konst_kw();
+    let build_fn_attributes = &builder_attr.build_fn_attributes;
 
     quote! {
         impl #impl_generics #builder #ty_generics #builder_where {
+            #(#build_fn_attributes)*
             #builder_vis #konst fn build(self) -> #ident #default_ty_generics  {
                 #[allow(deprecated)] // #inner is set to deprecated
                 {
@@ -312,8 +314,10 @@ pub fn type_state_builder(
     let new_generics = CustomTypeGenerics::new(&input.generics, new_generics);
 
     let konst = builder_attr.konst_kw();
+    let attributes = &builder_attr.attributes;
 
     out.extend(quote! {
+        #(#attributes)*
         #[allow(clippy::type_complexity)]
         #[must_use = "The builder doesn't construct its type until `.build()` is called"]
         #builder_vis struct #builder #struct_generics #where_clause {
@@ -357,8 +361,6 @@ pub fn type_state_builder(
         let (args, value) = f.attr.to_args_and_value(f.arg_ty(), &f.ident);
         let fn_ident = f.function_ident(builder_attr);
 
-        let doc = &f.doc;
-
         fn ident_to_type(ident: &Ident) -> Type {
             TypePath {
                 qself: None,
@@ -366,6 +368,8 @@ pub fn type_state_builder(
             }
             .into()
         }
+
+        let fn_attributes = &f.attr.attributes;
 
         let field_i = f.tuple_index();
         let value_ty = &f.arg_ty();
@@ -382,7 +386,7 @@ pub fn type_state_builder(
                 quote_spanned! {
                     fn_ident.span() =>
                     impl #impl_generics #builder #ty_generics #where_clause {
-                        #(#doc)*
+                        #(#fn_attributes)*
                         #[allow(clippy::type_complexity)]
                         pub #konst fn #fn_ident(self, #args) -> #builder #ty_generics {
                             let value: #value_ty = #value;
@@ -450,7 +454,7 @@ pub fn type_state_builder(
                 quote_spanned! {
                     fn_ident.span() =>
                     impl #impl_generics #builder #ty_generics #field_where {
-                        #(#doc)*
+                        #(#fn_attributes)*
                         #[allow(clippy::type_complexity)]
                         pub #konst fn #fn_ident(self, #args) -> #builder #ret_ty_generics {
                             let value: #value_ty = #value;
@@ -506,7 +510,7 @@ pub fn type_state_builder(
                 quote_spanned! {
                     fn_ident.span() =>
                     impl #impl_generics_fields #builder #struct_generics_fields #where_clause {
-                        #(#doc)*
+                        #(#fn_attributes)*
                         #[allow(clippy::type_complexity)]
                         pub #konst fn #fn_ident(self, #args) -> #builder #return_struct_generics_fields {
                             let value: #value_ty = #value;

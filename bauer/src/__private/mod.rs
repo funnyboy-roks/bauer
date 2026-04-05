@@ -1,4 +1,4 @@
-use std::mem::MaybeUninit;
+use std::{fmt::Debug, mem::MaybeUninit};
 
 pub mod state;
 
@@ -8,7 +8,6 @@ pub mod sealed {
     pub trait Sealed {}
 }
 
-#[derive(Debug)]
 pub struct PushableArray<const N: usize, T> {
     len: usize,
     array: [MaybeUninit<T>; N],
@@ -26,6 +25,12 @@ impl<const N: usize, T> PushableArray<N, T> {
             array: [const { MaybeUninit::uninit() }; N],
             len: 0,
         }
+    }
+
+    pub const fn as_slice(&self) -> &[T] {
+        // Can't currently slice with range in const, so using pointer stuff
+        // SAFETY: We have at least self.len initialised elements
+        unsafe { std::slice::from_raw_parts((&raw const self.array).cast(), self.len) }
     }
 
     /// Push a value.  Returns `Err(T)` if the value would not fit in the array
@@ -73,6 +78,21 @@ impl<const N: usize, T> PushableArray<N, T> {
         } else {
             None
         }
+    }
+}
+
+impl<const N: usize, T> AsRef<[T]> for PushableArray<N, T> {
+    fn as_ref(&self) -> &[T] {
+        self.as_slice()
+    }
+}
+
+impl<const N: usize, T> Debug for PushableArray<N, T>
+where
+    T: Debug,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self.as_slice())
     }
 }
 

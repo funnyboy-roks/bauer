@@ -6,6 +6,8 @@ use syn::{DeriveInput, Ident};
 
 use crate::BuilderField;
 
+pub mod parse;
+
 pub(crate) struct Replace<I: Iterator + Sized> {
     iter: std::iter::Enumerate<I>,
     value: Option<<I as Iterator>::Item>,
@@ -39,6 +41,7 @@ impl<I: Iterator> ReplaceTrait for I {
     }
 }
 
+#[derive(Clone, Copy)]
 pub struct OptionalToken<T>(pub Option<T>);
 
 impl<T> ToTokens for OptionalToken<T>

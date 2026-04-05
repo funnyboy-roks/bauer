@@ -3,15 +3,19 @@ use std::ops::Range;
 use convert_case::{Case, Casing};
 use proc_macro2::{Span, TokenStream};
 use quote::{ToTokens, format_ident, quote, quote_spanned};
+use strum::{AsRefStr, IntoStaticStr, VariantArray};
 use syn::{
-    Expr, ExprClosure, Field, Ident, LitStr, Meta, Pat, Token, Type, parenthesized,
+    Expr, ExprClosure, Field, Ident, LitStr, Pat, Token, Type, braced, parenthesized,
     parse::{Parse, ParseStream},
     parse_quote,
     spanned::Spanned,
-    token::Paren,
+    token::{Brace, Paren},
 };
 
-use crate::{BuilderAttr, Kind, util::escape_ident};
+use crate::{
+    BuilderAttr, Kind,
+    util::{escape_ident, parse::parse_attributes},
+};
 
 pub(crate) fn get_single_generic<'a>(ty: &'a Type, name: Option<&str>) -> Option<&'a Type> {
     match ty {
@@ -109,7 +113,8 @@ macro_rules! bail {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, VariantArray, IntoStaticStr, AsRefStr, Debug, PartialEq, Eq)]
+#[strum(serialize_all = "snake_case")]
 enum Attribute {
     Default,
     Into,
@@ -120,56 +125,41 @@ enum Attribute {
     SkipSuffix,
     Tuple,
     Adapter,
+    #[allow(clippy::enum_variant_names)]
+    Attributes,
 }
 
 impl Attribute {
-    const ALL: [Self; 9] = [
-        Self::Default,
-        Self::Into,
-        Self::Repeat,
-        Self::RepeatN,
-        Self::Rename,
-        Self::SkipPrefix,
-        Self::SkipSuffix,
-        Self::Tuple,
-        Self::Adapter,
-    ];
+    fn as_str(self) -> &'static str {
+        self.into()
+    }
+}
 
-    const fn as_str(self) -> &'static str {
+impl Attribute {
+    fn matches(self, ident: &Ident) -> bool {
+        if ident == self.as_ref() {
+            return true;
+        }
+
         match self {
-            Attribute::Default => "default",
-            Attribute::Into => "into",
-            Attribute::Repeat => "repeat",
-            Attribute::RepeatN => "repeat_n",
-            Attribute::Rename => "rename",
-            Attribute::SkipPrefix => "skip_prefix",
-            Attribute::SkipSuffix => "skip_suffix",
-            Attribute::Tuple => "tuple",
-            Attribute::Adapter => "adapter",
+            Self::Attributes => ident == "attribute",
+            _ => false,
         }
     }
-}
 
-impl AsRef<str> for Attribute {
-    fn as_ref(&self) -> &str {
-        self.as_str()
-    }
-}
-
-impl Attribute {
     fn parse(ident: &Ident) -> syn::Result<Self> {
-        Self::ALL
+        Self::VARIANTS
             .iter()
             .copied()
-            .find(|e| ident == e)
+            .find(|e| e.matches(ident))
             .ok_or_else(|| {
                 syn::Error::new(
                     ident.span(),
                     format!(
                         "Unknown attribute '{}'.  Valid attribute are: '{}'",
                         ident,
-                        Self::ALL
-                            .into_iter()
+                        Self::VARIANTS
+                            .iter()
                             .map(|s| s.as_str())
                             .collect::<Vec<_>>()
                             .join(", ")
@@ -206,7 +196,6 @@ pub struct BuilderField {
     pub attr: FieldAttr,
     pub missing_err: Option<Ident>,
     pub wrapped_option: bool,
-    pub doc: Vec<syn::Attribute>,
     pub idents: FieldIdents,
     pub index: usize,
 }
@@ -260,7 +249,6 @@ impl BuilderField {
         let ty = self.arg_ty();
         let fn_ident = self.function_ident(builder_attr);
         let (args, value) = self.attr.to_args_and_value(ty, field_name);
-        let doc = &self.doc;
         let self_param = builder_attr.self_param();
         let return_type = builder_attr.return_type();
         let builder_vis = &builder_attr.vis;
@@ -273,18 +261,19 @@ impl BuilderField {
             quote! { self.#inner.#field_i = Some(value) }
         };
 
+        let attributes = &self.attr.attributes;
         let konst = builder_attr.konst_kw();
 
         quote! {
-            #(#doc)*
-                #[must_use = "The builder doesn't construct its type until `.build()` is called"]
-                #builder_vis #konst fn #fn_ident(#self_param, #args) -> #return_type {
-                    let value: #ty = #value;
-                    #[allow(deprecated)] // #inner is set to deprecated
-                    {
-                        #setter;
-                    }
-                    self
+            #(#attributes)*
+            #[must_use = "The builder doesn't construct its type until `.build()` is called"]
+            #builder_vis #konst fn #fn_ident(#self_param, #args) -> #return_type {
+                let value: #ty = #value;
+                #[allow(deprecated)] // #inner is set to deprecated
+                {
+                    #setter;
+                }
+                self
             }
         }
     }
@@ -303,7 +292,7 @@ impl BuilderField {
             (&value.ty, false)
         };
 
-        let attr: FieldAttr =
+        let mut attr: FieldAttr =
             if let Some(attr) = value.attrs.iter().find(|a| a.path().is_ident("builder")) {
                 attr.parse_args_with(|input: ParseStream| {
                     FieldAttr::parse(input, builder_attr, value, wrapped_option)
@@ -312,18 +301,15 @@ impl BuilderField {
                 FieldAttr::default()
             };
 
-        let doc: Vec<syn::Attribute> = value
-            .attrs
-            .iter()
-            .filter(|a| {
-                if let Meta::NameValue(meta) = &a.meta {
-                    meta.path.get_ident().is_some_and(|n| n == "doc")
-                } else {
-                    false
-                }
-            })
-            .cloned()
-            .collect();
+        if !attr.attributes.iter().any(|a| a.path().is_ident("doc")) {
+            attr.attributes.reserve(value.attrs.len());
+            value
+                .attrs
+                .iter()
+                .filter(|a| a.path().is_ident("doc"))
+                .cloned()
+                .for_each(|a| attr.attributes.push(a))
+        }
 
         Ok(BuilderField {
             ident: ident.clone(),
@@ -343,7 +329,6 @@ impl BuilderField {
             },
             attr,
             wrapped_option,
-            doc,
             idents: FieldIdents::new(struct_name, ident),
             index,
         })
@@ -667,6 +652,7 @@ pub struct FieldAttr {
     /// None              -> tuple is passed as a value
     pub tuple: Option<Option<Vec<Ident>>>,
     pub adapter: Option<Adapter>,
+    pub attributes: Vec<syn::Attribute>,
 }
 
 impl FieldAttr {
@@ -936,6 +922,22 @@ impl FieldAttr {
                     };
 
                     out.adapter = Some(adapters);
+                }
+                Attribute::Attributes => {
+                    let attrs;
+
+                    let la = input.lookahead1();
+                    if la.peek(Paren) {
+                        parenthesized!(attrs in input);
+                    } else if la.peek(Brace) {
+                        braced!(attrs in input);
+                    } else {
+                        return Err(la.error());
+                    }
+
+                    if !attrs.is_empty() {
+                        parse_attributes(&attrs, &mut out.attributes)?;
+                    }
                 }
             }
 

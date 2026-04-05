@@ -18,3 +18,4 @@ bauer-macros.workspace = true
 
 [dev-dependencies]
 trybuild = "1.0.114"
+attribute = { path = "../testing/attribute" }

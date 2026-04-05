@@ -1,5 +1,5 @@
 [workspace]
-members = ["bauer", "bauer-macros"]
+members = ["bauer", "bauer-macros", "testing/attribute"]
 resolver = "2"
 
 [workspace.package]

@@ -2,15 +2,17 @@ use std::str::FromStr;
 
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
-use strum::{IntoStaticStr, VariantArray};
+use strum::{AsRefStr, IntoStaticStr, VariantArray};
 use syn::{
-    Ident, LitStr, Token, Visibility,
+    Ident, LitStr, Token, Visibility, braced,
     ext::IdentExt,
+    parenthesized,
     parse::{Parse, ParseStream},
     parse_quote,
+    token::{Brace, Paren},
 };
 
-use crate::util::OptionalToken;
+use crate::util::{OptionalToken, parse::parse_attributes};
 
 macro_rules! bail {
     ($span: expr => $message: literal $(, $args: expr)*$(,)?) => {
@@ -55,7 +57,7 @@ impl Parse for Kind {
     }
 }
 
-#[derive(Clone, Copy, VariantArray, IntoStaticStr, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, VariantArray, IntoStaticStr, AsRefStr, Debug, PartialEq, Eq)]
 #[strum(serialize_all = "snake_case")]
 enum Attribute {
     Kind,
@@ -64,26 +66,30 @@ enum Attribute {
     Visibility,
     Crate,
     Const,
+    #[allow(clippy::enum_variant_names)]
+    Attributes,
+    #[allow(clippy::enum_variant_names)]
+    BuildFnAttributes,
 }
 
 impl Attribute {
-    fn as_str(self) -> &'static str {
-        self.into()
-    }
-}
+    fn matches(self, ident: &Ident) -> bool {
+        if ident == self.as_ref() {
+            return true;
+        }
 
-impl AsRef<str> for Attribute {
-    fn as_ref(&self) -> &str {
-        self.as_str()
+        match self {
+            Self::Attributes => ident == "attribute",
+            Self::BuildFnAttributes => ident == "build_fn_attribute",
+            _ => false,
+        }
     }
-}
 
-impl Attribute {
     fn parse(ident: &Ident) -> syn::Result<Self> {
         Self::VARIANTS
             .iter()
             .copied()
-            .find(|e| ident == e)
+            .find(|e| e.matches(ident))
             .ok_or_else(|| {
                 syn::Error::new(
                     ident.span(),
@@ -92,7 +98,7 @@ impl Attribute {
                         ident,
                         Self::VARIANTS
                             .iter()
-                            .map(|s| s.as_str())
+                            .map(<&str>::from)
                             .collect::<Vec<_>>()
                             .join(", ")
                     ),
@@ -109,6 +115,8 @@ pub struct BuilderAttr {
     pub vis: Visibility,
     pub krate: Ident,
     pub konst: bool,
+    pub attributes: Vec<syn::Attribute>,
+    pub build_fn_attributes: Vec<syn::Attribute>,
 }
 
 impl BuilderAttr {
@@ -120,6 +128,8 @@ impl BuilderAttr {
             vis,
             krate: format_ident!("bauer"),
             konst: false,
+            attributes: Default::default(),
+            build_fn_attributes: Default::default(),
         }
     }
 
@@ -217,6 +227,38 @@ impl BuilderAttr {
                     }
 
                     out.konst = true;
+                }
+                Attribute::Attributes => {
+                    let attrs;
+
+                    let la = input.lookahead1();
+                    if la.peek(Paren) {
+                        parenthesized!(attrs in input);
+                    } else if la.peek(Brace) {
+                        braced!(attrs in input);
+                    } else {
+                        return Err(la.error());
+                    }
+
+                    if !attrs.is_empty() {
+                        parse_attributes(&attrs, &mut out.attributes)?;
+                    }
+                }
+                Attribute::BuildFnAttributes => {
+                    let attrs;
+
+                    let la = input.lookahead1();
+                    if la.peek(Paren) {
+                        parenthesized!(attrs in input);
+                    } else if la.peek(Brace) {
+                        braced!(attrs in input);
+                    } else {
+                        return Err(la.error());
+                    }
+
+                    if !attrs.is_empty() {
+                        parse_attributes(&attrs, &mut out.build_fn_attributes)?;
+                    }
                 }
             }
 
