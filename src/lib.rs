@@ -64,6 +64,10 @@
 //!
 //! Specify a default value for the field to have, or use [`Default::default`]
 //!
+//! ### **`required`**
+//!
+//! Force a field to be specified, even if it is an `Option`.  Normally, `Option` fields are optional.
+//!
 //! ### **`repeat`**
 //!
 //! Allow any structure which supports [`FromIterator`] to be specified by calling the function
@@ -272,6 +276,32 @@ mod util;
 ///     .a(42)
 ///     .build();
 /// assert_eq!(foo, Foo { a: 42, b: std::f32::consts::PI });
+/// ```
+///
+/// ## **`required`**
+///
+/// Force a field to be specified, even if it is an `Option`.  Normally, `Option` fields are
+/// optional.
+///
+/// ```
+/// # use bauer::Builder;
+/// # const _: &str = stringify!(
+/// #[derive(Builder)]
+/// # );
+/// # #[derive(Builder, PartialEq, Debug)]
+/// pub struct Foo {
+///     #[builder(required)]
+///     a: Option<u32>,
+/// }
+///
+/// let foo = Foo::builder().a(Some(42)).build().unwrap();
+/// assert_eq!(foo, Foo { a: Some(42) });
+///
+/// let foo = Foo::builder().a(None).build().unwrap();
+/// assert_eq!(foo, Foo { a: None });
+///
+/// let foo_err = Foo::builder().build();
+/// assert!(foo_err.is_err());
 /// ```
 ///
 /// ## **`repeat`**

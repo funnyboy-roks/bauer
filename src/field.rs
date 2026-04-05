@@ -117,10 +117,11 @@ enum Attribute {
     SkipSuffix,
     Tuple,
     Adapter,
+    Required,
 }
 
 impl Attribute {
-    const ALL: [Self; 9] = [
+    const ALL: [Self; 10] = [
         Self::Default,
         Self::Into,
         Self::Repeat,
@@ -130,6 +131,7 @@ impl Attribute {
         Self::SkipSuffix,
         Self::Tuple,
         Self::Adapter,
+        Self::Required,
     ];
 
     const fn as_str(self) -> &'static str {
@@ -143,6 +145,7 @@ impl Attribute {
             Attribute::SkipSuffix => "skip_suffix",
             Attribute::Tuple => "tuple",
             Attribute::Adapter => "adapter",
+            Attribute::Required => "required",
         }
     }
 }
@@ -291,7 +294,11 @@ impl BuilderField {
             };
 
         let (ty, wrapped_option) = if let Some(ty) = get_single_generic(&value.ty, Some("Option")) {
-            (ty, true)
+            if attr.required {
+                (&value.ty, false)
+            } else {
+                (ty, true)
+            }
         } else {
             (&value.ty, false)
         };
@@ -400,6 +407,7 @@ pub struct FieldAttr {
     /// None              -> tuple is passed as a value
     pub tuple: Option<Option<Vec<Ident>>>,
     pub adapter: Option<Adapter>,
+    pub required: bool,
 }
 
 impl FieldAttr {
@@ -611,6 +619,12 @@ impl FieldAttr {
                     };
 
                     out.adapter = Some(adapters);
+                }
+                Attribute::Required => {
+                    if out.required {
+                        bail!(ident.span() => "`required` may only be used once.");
+                    }
+                    out.required = true;
                 }
             }
 
