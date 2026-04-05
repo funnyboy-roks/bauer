@@ -246,7 +246,6 @@ mod util;
 /// )]
 /// pub struct Foo {
 ///     field: u32,
-///     field: u32,
 /// }
 /// ```
 ///
@@ -532,9 +531,9 @@ mod util;
 ///             /// Some documentation for my field
 ///         },
 ///     )]
-///     field: u32,
+///     field_a: u32,
 ///     #[builder(default, doc(hidden))]
-///     field: u32,
+///     field_b: u32,
 /// }
 /// ```
 #[proc_macro_derive(Builder, attributes(builder))]

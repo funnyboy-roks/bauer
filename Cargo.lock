@@ -4,7 +4,7 @@ version = 4
 
 [[package]]
 name = "attribute"
-version = "0.4.0"
+version = "0.0.0"
 
 [[package]]
 name = "bauer"

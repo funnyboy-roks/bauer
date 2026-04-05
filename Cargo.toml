@@ -1,5 +1,6 @@
 [workspace]
-members = ["bauer", "bauer-macros", "testing/attribute"]
+members = ["bauer", "bauer-macros"]
+exclude = ["testing"] # crates just for testing don't really need them in the workspace
 resolver = "2"
 
 [workspace.package]

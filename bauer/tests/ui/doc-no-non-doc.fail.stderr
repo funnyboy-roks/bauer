@@ -1,0 +1,5 @@
+error: Only `doc` attributes are supported here
+ --> tests/ui/doc-no-non-doc.fail.rs:4:17
+  |
+4 | #[builder(doc(#[not_doc_attribute = "foo"]))]
+  |                 ^^^^^^^^^^^^^^^^^
