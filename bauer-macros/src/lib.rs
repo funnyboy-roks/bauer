@@ -196,6 +196,34 @@ mod util;
 /// }
 /// ```
 ///
+/// ## **`attributes` / `build_fn_attributes`**
+///
+/// Any attributes specified in `attributes` will be added to the generated builder struct.
+/// Similarly, any attributes specified in `build_fn_attributes` will be added to generated
+/// `.build()` function.
+///
+/// You may also use `attribute` instead of `attributes` and `build_fn_attribute` instead of
+/// `build_fn_attributes`.
+///
+/// ```
+/// # use bauer_macros::Builder;
+/// # use attribute::{my_attribute, my_attribute2};
+/// #[derive(Builder)]
+/// #[builder(
+///     attributes(
+///         #[my_attribute]
+///         #[my_attribute2]
+///     ),
+///     build_fn_attributes(
+///         #[my_attribute]
+///         #[my_attribute2]
+///     ),
+/// )]
+/// pub struct Foo {
+///     field: u32,
+/// }
+/// ```
+///
 /// # Fields Attributes
 ///
 /// ## **`default`**
@@ -437,6 +465,26 @@ mod util;
 ///     .build()
 ///     .unwrap();
 /// assert_eq!(foo, Foo { field: String::from("5/23") });
+/// ```
+///
+/// ## **`attributes`
+///
+/// Any attributes specified in `attributes` will be added to the generated function for this
+/// field.  You may also use `attribute` insted of `attributes`.
+///
+/// ```
+/// # use bauer_macros::Builder;
+/// # use attribute::{my_attribute, my_attribute2};
+/// #[derive(Builder)]
+/// pub struct Foo {
+///     #[builder(
+///         attributes(
+///             #[my_attribute]
+///             #[my_attribute2]
+///         ),
+///     )]
+///     field: u32,
+/// }
 /// ```
 #[proc_macro_derive(Builder, attributes(builder))]
 pub fn builder(input: TokenStream) -> TokenStream {
