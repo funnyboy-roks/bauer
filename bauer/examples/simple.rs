@@ -4,19 +4,19 @@ use bauer::Builder;
 #[builder(
     kind = "owned",
     prefix = "set_",
-    build_fn_attributes(
-        /// This is a documentation comment :)
-        ///
-        /// With multiple lines!
-    ),
-    attributes(
-        /// This is a documentation comment :)
-        ///
-        /// With multiple lines!
-    )
+    doc {
+        /// This is some documentation added to the builder with the `doc` attribute!
+    },
+    build_fn_doc {
+        /// This is some documentation added to the build function with the `build_fn_doc` attribute!
+    },
 )]
 pub struct Foo {
-    #[builder(default = "42", attributes())]
+    #[builder(default = "42",
+        doc {
+            /// This is some documentation added with the `doc` attribute!
+        },
+        attributes())]
     pub field_a: u32,
     pub field_b: bool,
     #[builder(into)]

@@ -14,7 +14,10 @@ use syn::{
 
 use crate::{
     BuilderAttr, Kind,
-    util::{escape_ident, parse::parse_attributes},
+    util::{
+        escape_ident,
+        parse::{parse_attributes, parse_docs},
+    },
 };
 
 pub(crate) fn get_single_generic<'a>(ty: &'a Type, name: Option<&str>) -> Option<&'a Type> {
@@ -127,6 +130,7 @@ enum Attribute {
     Adapter,
     #[allow(clippy::enum_variant_names)]
     Attributes,
+    Doc,
 }
 
 impl Attribute {
@@ -937,6 +941,22 @@ impl FieldAttr {
 
                     if !attrs.is_empty() {
                         parse_attributes(&attrs, &mut out.attributes)?;
+                    }
+                }
+                Attribute::Doc => {
+                    let attrs;
+
+                    let la = input.lookahead1();
+                    if la.peek(Paren) {
+                        parenthesized!(attrs in input);
+                    } else if la.peek(Brace) {
+                        braced!(attrs in input);
+                    } else {
+                        return Err(la.error());
+                    }
+
+                    if !attrs.is_empty() {
+                        parse_docs(&attrs, ident.span(), &mut out.attributes)?;
                     }
                 }
             }

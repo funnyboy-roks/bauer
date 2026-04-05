@@ -12,7 +12,10 @@ use syn::{
     token::{Brace, Paren},
 };
 
-use crate::util::{OptionalToken, parse::parse_attributes};
+use crate::util::{
+    OptionalToken,
+    parse::{parse_attributes, parse_docs},
+};
 
 macro_rules! bail {
     ($span: expr => $message: literal $(, $args: expr)*$(,)?) => {
@@ -70,6 +73,8 @@ enum Attribute {
     Attributes,
     #[allow(clippy::enum_variant_names)]
     BuildFnAttributes,
+    Doc,
+    BuildFnDoc,
 }
 
 impl Attribute {
@@ -258,6 +263,38 @@ impl BuilderAttr {
 
                     if !attrs.is_empty() {
                         parse_attributes(&attrs, &mut out.build_fn_attributes)?;
+                    }
+                }
+                Attribute::Doc => {
+                    let attrs;
+
+                    let la = input.lookahead1();
+                    if la.peek(Paren) {
+                        parenthesized!(attrs in input);
+                    } else if la.peek(Brace) {
+                        braced!(attrs in input);
+                    } else {
+                        return Err(la.error());
+                    }
+
+                    if !attrs.is_empty() {
+                        parse_docs(&attrs, ident.span(), &mut out.attributes)?;
+                    }
+                }
+                Attribute::BuildFnDoc => {
+                    let attrs;
+
+                    let la = input.lookahead1();
+                    if la.peek(Paren) {
+                        parenthesized!(attrs in input);
+                    } else if la.peek(Brace) {
+                        braced!(attrs in input);
+                    } else {
+                        return Err(la.error());
+                    }
+
+                    if !attrs.is_empty() {
+                        parse_docs(&attrs, ident.span(), &mut out.build_fn_attributes)?;
                     }
                 }
             }
