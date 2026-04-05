@@ -196,7 +196,7 @@ mod util;
 /// }
 /// ```
 ///
-/// ## **`attributes` / `build_fn_attributes`**
+/// ## **`attributes`** / **`build_fn_attributes`**
 ///
 /// Any attributes specified in `attributes` will be added to the generated builder struct.
 /// Similarly, any attributes specified in `build_fn_attributes` will be added to generated
@@ -220,6 +220,32 @@ mod util;
 ///     ),
 /// )]
 /// pub struct Foo {
+///     field: u32,
+/// }
+/// ```
+///
+/// ## **`doc`** / **`build_fn_doc`**
+///
+/// Add documentation to the generated builder struct or the generated `.build()` function
+///
+/// `#[doc]` attributes may also be added using this attribute, i.e., `doc(hidden)`.
+///
+/// Either parentheses `()` or brackets `{}` may be used after `doc`/`build_fn_doc`.
+///
+/// ```
+/// # use bauer_macros::Builder;
+/// # use attribute::{my_attribute, my_attribute2};
+/// #[derive(Builder)]
+/// #[builder(
+///     doc {
+///         /// Some documentation for my field
+///     },
+///     build_fn_doc {
+///         /// Some documentation for my field
+///     },
+/// )]
+/// pub struct Foo {
+///     field: u32,
 ///     field: u32,
 /// }
 /// ```
@@ -467,7 +493,7 @@ mod util;
 /// assert_eq!(foo, Foo { field: String::from("5/23") });
 /// ```
 ///
-/// ## **`attributes`
+/// ## **`attributes`**
 ///
 /// Any attributes specified in `attributes` will be added to the generated function for this
 /// field.  You may also use `attribute` insted of `attributes`.
@@ -483,6 +509,31 @@ mod util;
 ///             #[my_attribute2]
 ///         ),
 ///     )]
+///     field: u32,
+/// }
+/// ```
+///
+/// ## **`doc`**
+///
+/// Add documentation to the field builder.  If documentation is not set using this
+/// attribute, then the documentation on the function will be inherited from the field.
+///
+/// `#[doc]` attributes may also be added using this attribute, i.e., `doc(hidden)`.
+///
+/// Either parentheses `()` or brackets `{}` may be used after `doc`.
+///
+/// ```
+/// # use bauer_macros::Builder;
+/// # use attribute::{my_attribute, my_attribute2};
+/// #[derive(Builder)]
+/// pub struct Foo {
+///     #[builder(
+///         doc {
+///             /// Some documentation for my field
+///         },
+///     )]
+///     field: u32,
+///     #[builder(default, doc(hidden))]
 ///     field: u32,
 /// }
 /// ```
