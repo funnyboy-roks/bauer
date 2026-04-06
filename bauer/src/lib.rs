@@ -140,7 +140,7 @@
 ///
 /// - `Missing{Field}` - A required field is missing
 /// - `Range{Field}(usize)` - A field was not specified with the correct number of arguments.  The
-///   specified quantity is in th enum.
+///   specified quantity is in the enum.
 ///
 /// Where `{Field}` is replaced with the PascalCase version of the field name.
 ///
@@ -279,7 +279,7 @@
 ///
 /// Default: visibility of the struct
 ///
-/// Set the visibilty for the generated builder struct
+/// Set the visibility for the generated builder struct
 ///
 /// The visibility can be set to `pub(self)` in order to make the builder private to the current
 /// module.
@@ -416,7 +416,7 @@
 /// ## **`repeat`**
 ///
 /// Make the generated method consume the "inner type" and build the field type at the end.  By
-/// default it uses [`FromIterator`] to build the final type, but that may be overriden with the
+/// default it uses [`FromIterator`] to build the final type, but that may be overridden with the
 /// [`collector`] attribute.
 ///
 /// If the field type has a single generic parameter, then that generic will be chosen as the inner
