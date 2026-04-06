@@ -40,20 +40,14 @@ fn build_fn(
             collector,
         }) = &field.attr.repeat
         {
-            let value = if let Some(collector) = collector {
+            let value = if *array {
+                quote! { array }
+            } else {
                 assert!(!builder_attr.konst);
                 assert!(!*array);
                 collector.collect(parse_quote_spanned! { inner_ty.span()=>
                     array.into_iter()
                 })
-            } else if *array {
-                quote! {
-                    array
-                }
-            } else {
-                quote! {
-                    ::core::iter::FromIterator::from_iter(array.into_iter())
-                }
             };
 
             quote_spanned! {
@@ -72,19 +66,12 @@ fn build_fn(
             ..
         }) = &field.attr.repeat
         {
-            let collect = if let Some(collector) = collector {
-                assert!(!builder_attr.konst);
-                assert!(!*array);
-                collector.collect(parse_quote_spanned! { inner_ty.span()=> {
-                    let _: &::std::vec::Vec<_> = &inner.#field_i; // assert that the types are correct
-                    inner.#field_i.into_iter()
-                }})
-            } else {
-                quote_spanned! { inner_ty.span()=> {
-                    let _: &::std::vec::Vec<_> = &inner.#field_i; // assert that the types are correct
-                    ::core::iter::FromIterator::from_iter(inner.#field_i.into_iter())
-                }}
-            };
+            assert!(!builder_attr.konst);
+            assert!(!*array);
+            let collect = collector.collect(parse_quote_spanned! { inner_ty.span()=> {
+                let _: &::std::vec::Vec<_> = &inner.#field_i; // assert that the types are correct
+                inner.#field_i.into_iter()
+            }});
 
             quote_spanned! { inner_ty.span()=>
                 #name: #collect
@@ -94,31 +81,15 @@ fn build_fn(
                 #name: inner.#field_i
             }
         } else if let Some(default) = &field.attr.default {
-            if let Some(default) = default {
-                let default = if let Some(span) = field.attr.into {
-                    quote_spanned! {span=> ::core::convert::Into::into(#default) }
+            let default = default.to_value(field.attr.into);
+
+            quote_spanned! {field.ty.span()=>
+                // TODO: make this a function once const traits are stable
+                #name: if <#pascal as #private_module::state::BuilderState>::SET {
+                    // SAFETY: If #pascal::SET is true, then we have already set #field_i
+                    unsafe { inner.#field_i.assume_init() }
                 } else {
-                    quote! { #default }
-                };
-                quote! {
-                    // TODO: make this a function once const traits are stable
-                    #name: if <#pascal as #private_module::state::BuilderState>::SET {
-                        // SAFETY: If #pascal::SET is true, then we have already set #field_i
-                        unsafe { inner.#field_i.assume_init() }
-                    } else {
-                        #default
-                    }
-                }
-            } else {
-                quote_spanned! {
-                    field.ty.span() =>
-                    // TODO: make this a function once const traits are stable
-                    #name: if <#pascal as #private_module::state::BuilderState>::SET {
-                        // SAFETY: If #pascal::SET is true, then we have already set #field_i
-                        unsafe { inner.#field_i.assume_init() }
-                    } else {
-                        ::core::default::Default::default()
-                    }
+                    #default
                 }
             }
         } else {

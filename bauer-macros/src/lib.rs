@@ -677,22 +677,19 @@ pub fn builder(input: TokenStream) -> TokenStream {
 
         if let Some(rep @ Repeat { inner_ty, collector, .. }) = &field.attr.repeat {
             if let Len::Raw { pattern, error } = &rep.len {
-                let value = if let Some(collector) = collector {
-                    assert!(!rep.array);
-                    assert!(!attr.konst);
-                    collector.collect(parse_quote_spanned! {inner_ty.span()=>
-                        self.#inner.#field_i.drain(..)
-                    })
-                } else if rep.array {
+                let value = if rep.array {
                     quote_spanned! { inner_ty.span()=> {
                         let arr = ::core::mem::replace(&mut self.#inner.#field_i, #private_module::PushableArray::new());
                         arr.into_array()
                             .expect("The match ensures the length of this array is correct")
                     }}
                 } else {
-                    quote_spanned! { inner_ty.span()=>
-                        ::std::iter::FromIterator::from_iter(self.#inner.#field_i.drain(..))
-                    }
+                    assert!(!rep.array);
+                    assert!(!attr.konst);
+
+                    collector.collect(parse_quote_spanned! {inner_ty.span()=>
+                        self.#inner.#field_i.drain(..)
+                    })
                 };
 
                 quote_spanned! { pattern.span()=>
@@ -701,7 +698,7 @@ pub fn builder(input: TokenStream) -> TokenStream {
                         len => return Err(#build_err::#error(len)),
                     }
                 }
-            } else if let Some(collector) = collector {
+            } else {
                 assert!(!rep.array);
                 assert!(!attr.konst);
                 let value = collector.collect(parse_quote_spanned! {inner_ty.span()=>
@@ -711,34 +708,18 @@ pub fn builder(input: TokenStream) -> TokenStream {
                 quote_spanned! { inner_ty.span()=>
                     #name: #value
                 }
-            } else {
-                quote_spanned! { inner_ty.span()=>
-                    #name: ::std::iter::FromIterator::from_iter(self.#inner.#field_i.drain(..))
-                }
             }
         } else if field.wrapped_option {
             quote! {
                 #name: self.#inner.#field_i.take()
             }
         } else if let Some(default) = &field.attr.default {
-            if let Some(default) = default {
-                if let Some(span) = field.attr.into {
-                    quote_spanned! {span=>
-                        #name: self.#inner.#field_i.take().unwrap_or_else(|| #default.into())
-                    }
-                } else {
-                    quote! {
-                        // NOTE: not using Option::unwrap_or_else, since it's not stable in const
-                        #name: match self.#inner.#field_i.take() {
-                            Some(v) => v,
-                            None => #default
-                        }
-                    }
-                }
-            } else {
-                quote_spanned! {
-                    field.ty.span() =>
-                    #name: self.#inner.#field_i.take().unwrap_or_default()
+            let default = default.to_value(field.attr.into);
+            quote! {
+                // NOTE: not using Option::unwrap_or_else, since it's not stable in const
+                #name: match self.#inner.#field_i.take() {
+                    Some(v) => v,
+                    None => #default
                 }
             }
         } else {
