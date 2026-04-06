@@ -494,6 +494,48 @@ mod util;
 /// assert_eq!(foo, Foo { field: String::from("5/23") });
 /// ```
 ///
+/// ## **`collector`**
+///
+/// On fields that use `repeat`, a collector may be specified to use in place of the default
+/// [`FromIterator`] in order to collect the added values differently.
+///
+/// `collector` may not be used on fields that are arrays.
+///
+/// [`FromIterator`]: std::iter::FromIterator
+///
+/// The function passed to `collector` is expected to have the following signature:
+///
+/// ```ignore
+/// fn my_collector(iter: impl ExactSizeIterator<Item = RepeatType>) -> FieldType;
+/// ```
+///
+/// Where `RepeatType` is the type determined by the `repeat` attribute and `FieldType` is the type
+/// of the field.
+///
+/// ```
+/// // Because Iterator is a super-trait of ExactSizeIterator, it may be used instead:
+/// fn sum_collector(iter: impl Iterator<Item = u64>) -> u64 {
+///     iter.sum()
+/// }
+///
+/// # use bauer_macros::Builder;
+/// # const _: &str = stringify!(
+/// #[derive(Builder)]
+/// # );
+/// # #[derive(Builder, PartialEq, Debug)]
+/// pub struct Foo {
+///     #[builder(repeat = u64, collector = sum_collector)]
+///     sum: u64,
+/// }
+///
+/// let foo = Foo::builder()
+///     .sum(21)
+///     .sum(34)
+///     .sum(55)
+///     .build();
+/// assert_eq!(foo.sum, 21 + 34 + 55);
+/// ```
+///
 /// ## **`attributes`**
 ///
 /// Any attributes specified in `attributes` will be added to the generated function for this
