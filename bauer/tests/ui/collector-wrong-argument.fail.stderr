@@ -1,0 +1,33 @@
+error[E0308]: mismatched types
+  --> tests/ui/collector-wrong-argument.fail.rs:10:40
+   |
+10 |     #[builder(repeat = u8, collector = count)]
+   |                                        ^^^^^
+   |                                        |
+   |                                        expected `Vec<u8>`, found type parameter `impl ::core::iter::ExactSizeIterator<Item = u8>`
+   |                                        arguments to this function are incorrect
+   |
+   = note:      expected struct `Vec<u8>`
+           found type parameter `impl ::core::iter::ExactSizeIterator<Item = u8>`
+note: function defined here
+  --> tests/ui/collector-wrong-argument.fail.rs:3:4
+   |
+ 3 | fn count(_wrong_argument: Vec<u8>) -> usize {
+   |    ^^^^^ ------------------------
+
+error[E0308]: mismatched types
+  --> tests/ui/collector-wrong-argument.fail.rs:17:40
+   |
+17 |     #[builder(repeat = u8, collector = count)]
+   |                                        ^^^^^
+   |                                        |
+   |                                        expected `Vec<u8>`, found type parameter `impl ::core::iter::ExactSizeIterator<Item = u8>`
+   |                                        arguments to this function are incorrect
+   |
+   = note:      expected struct `Vec<u8>`
+           found type parameter `impl ::core::iter::ExactSizeIterator<Item = u8>`
+note: function defined here
+  --> tests/ui/collector-wrong-argument.fail.rs:3:4
+   |
+ 3 | fn count(_wrong_argument: Vec<u8>) -> usize {
+   |    ^^^^^ ------------------------

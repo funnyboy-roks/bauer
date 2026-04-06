@@ -1,7 +1,9 @@
 use proc_macro::TokenStream;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{ToTokens, format_ident, quote, quote_spanned};
-use syn::{DeriveInput, parse::ParseStream, parse_macro_input, spanned::Spanned};
+use syn::{
+    DeriveInput, parse::ParseStream, parse_macro_input, parse_quote_spanned, spanned::Spanned,
+};
 
 use crate::{
     builder::{BuilderAttr, Kind},
@@ -608,6 +610,7 @@ pub fn builder(input: TokenStream) -> TokenStream {
                 inner_ty,
                 array,
                 len,
+                ..
             }) = &f.attr.repeat
             {
                 if *array {
@@ -672,9 +675,15 @@ pub fn builder(input: TokenStream) -> TokenStream {
         let name = &field.ident;
         let field_i = field.tuple_index();
 
-        if let Some(rep @ Repeat { inner_ty, .. }) = &field.attr.repeat {
+        if let Some(rep @ Repeat { inner_ty, collector, .. }) = &field.attr.repeat {
             if let Len::Raw { pattern, error } = &rep.len {
-                let value = if rep.array {
+                let value = if let Some(collector) = collector {
+                    assert!(!rep.array);
+                    assert!(!attr.konst);
+                    collector.collect(parse_quote_spanned! {inner_ty.span()=>
+                        self.#inner.#field_i.drain(..)
+                    })
+                } else if rep.array {
                     quote_spanned! { inner_ty.span()=> {
                         let arr = ::core::mem::replace(&mut self.#inner.#field_i, #private_module::PushableArray::new());
                         arr.into_array()
@@ -682,19 +691,28 @@ pub fn builder(input: TokenStream) -> TokenStream {
                     }}
                 } else {
                     quote_spanned! { inner_ty.span()=>
-                        self.#inner.#field_i.drain(..).collect()
+                        ::std::iter::FromIterator::from_iter(self.#inner.#field_i.drain(..))
                     }
                 };
+
                 quote_spanned! { pattern.span()=>
                     #name: match self.#inner.#field_i.len() {
-                        #pattern => #value, // TODO: Take and then slice.try_into()
+                        #pattern => #value,
                         len => return Err(#build_err::#error(len)),
                     }
                 }
+            } else if let Some(collector) = collector {
+                assert!(!rep.array);
+                assert!(!attr.konst);
+                let value = collector.collect(parse_quote_spanned! {inner_ty.span()=>
+                    self.#inner.#field_i.drain(..)
+                });
+
+                quote_spanned! { inner_ty.span()=>
+                    #name: #value
+                }
             } else {
                 quote_spanned! { inner_ty.span()=>
-                    // using associated function syntax as that gives better error messages
-                    // (i.e., not "call chain may not have expected associated type"
                     #name: ::std::iter::FromIterator::from_iter(self.#inner.#field_i.drain(..))
                 }
             }

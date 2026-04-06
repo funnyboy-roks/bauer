@@ -1,0 +1,23 @@
+error: `collector` may not be used on arrays
+  --> tests/ui/collector-conflict.fail.rs:10:23
+   |
+10 |     #[builder(repeat, collector = count)]
+   |                       ^^^^^^^^^
+
+error: `collector` may not be used on arrays
+  --> tests/ui/collector-conflict.fail.rs:17:23
+   |
+17 |     #[builder(repeat, collector = count)]
+   |                       ^^^^^^^^^
+
+error: `collector` may only be used with `repeat`
+  --> tests/ui/collector-conflict.fail.rs:24:15
+   |
+24 |     #[builder(collector = count)]
+   |               ^^^^^^^^^
+
+error: `collector` may only be used with `repeat`
+  --> tests/ui/collector-conflict.fail.rs:31:15
+   |
+31 |     #[builder(collector = count)]
+   |               ^^^^^^^^^

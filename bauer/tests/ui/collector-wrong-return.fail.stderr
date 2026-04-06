@@ -1,0 +1,21 @@
+error[E0308]: mismatched types
+  --> tests/ui/collector-wrong-return.fail.rs:10:40
+   |
+10 |     #[builder(repeat = u8, collector = count)]
+   |                                        ^^^^^ expected `usize`, found `Vec<u8>`
+11 |     field_a: usize,
+   |              ----- expected `usize` because of return type
+   |
+   = note: expected type `usize`
+            found struct `Vec<u8>`
+
+error[E0308]: mismatched types
+  --> tests/ui/collector-wrong-return.fail.rs:17:40
+   |
+17 |     #[builder(repeat = u8, collector = count)]
+   |                                        ^^^^^ expected `usize`, found `Vec<u8>`
+18 |     field_a: usize,
+   |              ----- expected `usize` because of return type
+   |
+   = note: expected type `usize`
+            found struct `Vec<u8>`

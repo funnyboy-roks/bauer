@@ -2,7 +2,9 @@ use std::collections::{HashMap, hash_map::Entry};
 
 use proc_macro2::TokenStream;
 use quote::{ToTokens, format_ident, quote, quote_spanned};
-use syn::{DeriveInput, Ident, Token, Type, TypePath, parse_quote, spanned::Spanned};
+use syn::{
+    DeriveInput, Ident, Token, Type, TypePath, parse_quote, parse_quote_spanned, spanned::Spanned,
+};
 
 use crate::{
     BuilderAttr, BuilderField, Len, Repeat,
@@ -35,9 +37,16 @@ fn build_fn(
             inner_ty,
             len: Len::Int(_),
             array,
+            collector,
         }) = &field.attr.repeat
         {
-            let value = if *array {
+            let value = if let Some(collector) = collector {
+                assert!(!builder_attr.konst);
+                assert!(!*array);
+                collector.collect(parse_quote_spanned! { inner_ty.span()=>
+                    array.into_iter()
+                })
+            } else if *array {
                 quote! {
                     array
                 }
@@ -46,6 +55,7 @@ fn build_fn(
                     ::core::iter::FromIterator::from_iter(array.into_iter())
                 }
             };
+
             quote_spanned! {
                 inner_ty.span() =>
                 #name: {
@@ -55,15 +65,29 @@ fn build_fn(
                     #value
                 }
             }
-        } else if let Some(Repeat { inner_ty, .. }) = &field.attr.repeat {
-            quote_spanned! {
-                inner_ty.span() =>
-                // using associated function syntax as that gives better error messages
-                // (i.e., not "call chain may not have expected associated type"
-                #name: {
+        } else if let Some(Repeat {
+            inner_ty,
+            collector,
+            array,
+            ..
+        }) = &field.attr.repeat
+        {
+            let collect = if let Some(collector) = collector {
+                assert!(!builder_attr.konst);
+                assert!(!*array);
+                collector.collect(parse_quote_spanned! { inner_ty.span()=> {
+                    let _: &::std::vec::Vec<_> = &inner.#field_i; // assert that the types are correct
+                    inner.#field_i.into_iter()
+                }})
+            } else {
+                quote_spanned! { inner_ty.span()=> {
                     let _: &::std::vec::Vec<_> = &inner.#field_i; // assert that the types are correct
                     ::core::iter::FromIterator::from_iter(inner.#field_i.into_iter())
-                }
+                }}
+            };
+
+            quote_spanned! { inner_ty.span()=>
+                #name: #collect
             }
         } else if field.wrapped_option {
             quote! {

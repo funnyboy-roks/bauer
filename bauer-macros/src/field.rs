@@ -131,6 +131,7 @@ enum Attribute {
     #[allow(clippy::enum_variant_names)]
     Attributes,
     Doc,
+    Collector,
 }
 
 impl Attribute {
@@ -583,10 +584,43 @@ impl TryFrom<syn::Pat> for Len {
 }
 
 #[derive(Debug)]
+pub struct Collector {
+    collector: Expr,
+    inner_ty: Type,
+    field_ty: Type,
+}
+
+impl Collector {
+    fn collector_fn(&self) -> TokenStream {
+        let Collector {
+            collector,
+            inner_ty,
+            field_ty,
+        } = &self;
+
+        quote_spanned! { collector.span()=>
+            fn collector(iter: impl ::core::iter::ExactSizeIterator<Item = #inner_ty>) -> #field_ty {
+                let collector = #collector;
+                collector(iter)
+            }
+        }
+    }
+
+    pub fn collect(&self, inner: Expr) -> TokenStream {
+        let collector_fn = self.collector_fn();
+        quote_spanned! {self.collector.span()=>{
+            #collector_fn
+            collector(#inner)
+        }}
+    }
+}
+
+#[derive(Debug)]
 pub struct Repeat {
     pub inner_ty: Type,
     pub len: Len,
     pub array: bool,
+    pub collector: Option<Collector>,
 }
 
 #[derive(Debug)]
@@ -802,6 +836,7 @@ impl FieldAttr {
                         inner_ty: inner,
                         len,
                         array,
+                        collector: None,
                     });
                 }
                 Attribute::RepeatN => {
@@ -958,6 +993,28 @@ impl FieldAttr {
                     if !attrs.is_empty() {
                         parse_docs(&attrs, ident.span(), &mut out.attributes)?;
                     }
+                }
+                Attribute::Collector => {
+                    let Some(repeat) = &mut out.repeat else {
+                        bail!(ident.span() => "`collector` may only be used with `repeat`");
+                    };
+
+                    if repeat.collector.is_some() {
+                        bail!(ident.span() => "`collector` may only be used once");
+                    };
+
+                    if repeat.array {
+                        bail!(ident.span() => "`collector` may not be used on arrays");
+                    }
+
+                    let _: Token![=] = input.parse()?;
+                    let collector: Expr = input.parse()?;
+
+                    repeat.collector = Some(Collector {
+                        collector,
+                        inner_ty: repeat.inner_ty.clone(),
+                        field_ty: field.ty.clone(),
+                    });
                 }
             }
 
