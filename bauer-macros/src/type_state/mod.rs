@@ -154,23 +154,41 @@ fn build_fn(
     let konst = builder_attr.konst_kw();
     let build_fn_attributes = &builder_attr.build_fn_attributes;
 
+    let (build_return, build_return_value, from) = if builder_attr.force_result {
+        (
+            quote! { ::core::result::Result<#ident #default_ty_generics, ::core::convert::Infallible> },
+            quote! { Ok(val) },
+            quote! {
+                let Ok(built) = builder.build();
+                built
+            },
+        )
+    } else {
+        (
+            quote! { #ident #default_ty_generics },
+            quote! { val },
+            quote! { builder.build() },
+        )
+    };
+
     quote! {
         impl #impl_generics #builder #ty_generics #builder_where {
             #(#build_fn_attributes)*
-            #builder_vis #konst fn build(self) -> #ident #default_ty_generics  {
+            #builder_vis #konst fn build(self) -> #build_return {
                 #[allow(deprecated)] // #inner is set to deprecated
                 {
                     let inner = self.#inner;
-                    #ident {
+                    let val = #ident {
                         #(#build_fields),*
-                    }
+                    };
+                    #build_return_value
                 }
             }
         }
 
         impl #impl_generics ::core::convert::From<#builder #ty_generics> for #ident #default_ty_generics #builder_where {
             fn from(builder: #builder #ty_generics) -> Self  {
-                builder.build()
+                #from
             }
         }
     }

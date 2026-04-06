@@ -2,7 +2,8 @@ use proc_macro::TokenStream;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{ToTokens, format_ident, quote, quote_spanned};
 use syn::{
-    DeriveInput, parse::ParseStream, parse_macro_input, parse_quote_spanned, spanned::Spanned,
+    DeriveInput, TypePath, parse::ParseStream, parse_macro_input, parse_quote, parse_quote_spanned,
+    spanned::Spanned,
 };
 
 use crate::{
@@ -55,6 +56,11 @@ mod util;
 ///
 /// If `kind` is set to `"type-state"`, then the builder will _not_ return a Result, as all build
 /// conditions are validated at compile-time.
+///
+/// ## Forcing Results
+///
+/// If you wish to have the `.build()` function _always_ return a result, add the `force_result`
+/// attribute to the builder.
 ///
 /// # Builder Attributes
 ///
@@ -249,6 +255,25 @@ mod util;
 /// pub struct Foo {
 ///     field: u32,
 /// }
+/// ```
+///
+/// ## **`force_result`**
+///
+/// Force the `.build()` function to return a result.
+///
+/// ```
+/// # use bauer_macros::Builder;
+/// # use attribute::{my_attribute, my_attribute2};
+/// #[derive(Builder)]
+/// #[builder(force_result)]
+/// pub struct Foo {
+///     #[builder(default)]
+///     field: u32,
+/// }
+///
+/// Foo::builder()
+///     .build()
+///     .unwrap();
 /// ```
 ///
 /// # Fields Attributes
@@ -784,19 +809,13 @@ pub fn builder(input: TokenStream) -> TokenStream {
     let konst = attr.konst_kw();
     let builder_fn_attributes = &attr.build_fn_attributes;
 
-    let build_fn = if build_err_variants.is_empty() {
-        quote! {
-            #(#builder_fn_attributes)*
-            #builder_vis #konst fn build(#self_param) -> #ident #ty_generics {
-                #[allow(deprecated)] // #inner is set to deprecated
-                {
-                    #ident {
-                        #(#build_fields),*
-                    }
-                }
-            }
-        }
+    let build_err: TypePath = if build_err_variants.is_empty() && attr.force_result {
+        parse_quote! { ::core::convert::Infallible }
     } else {
+        parse_quote! { #build_err }
+    };
+
+    let build_fn = if !build_err_variants.is_empty() || attr.force_result {
         quote! {
             #(#builder_fn_attributes)*
             #builder_vis #konst fn build(#self_param) -> ::core::result::Result<#ident #ty_generics, #build_err> {
@@ -805,6 +824,18 @@ pub fn builder(input: TokenStream) -> TokenStream {
                     Ok(#ident {
                         #(#build_fields),*
                     })
+                }
+            }
+        }
+    } else {
+        quote! {
+            #(#builder_fn_attributes)*
+            #builder_vis #konst fn build(#self_param) -> #ident #ty_generics {
+                #[allow(deprecated)] // #inner is set to deprecated
+                {
+                    #ident {
+                        #(#build_fields),*
+                    }
                 }
             }
         }
@@ -834,10 +865,19 @@ pub fn builder(input: TokenStream) -> TokenStream {
     };
 
     let into_impl = if build_err_variants.is_empty() {
+        let value = if attr.force_result {
+            quote! {
+                let Ok(built) = builder.build();
+                built
+            }
+        } else {
+            quote! { builder.build() }
+        };
+
         quote! {
             impl #impl_generics ::core::convert::From<#builder #ty_generics> for #ident #ty_generics #where_clause {
                 fn from(mut builder: #builder #ty_generics) -> Self {
-                    builder.build()
+                    #value
                 }
             }
         }

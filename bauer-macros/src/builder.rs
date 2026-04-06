@@ -75,6 +75,7 @@ enum Attribute {
     BuildFnAttributes,
     Doc,
     BuildFnDoc,
+    ForceResult,
 }
 
 impl Attribute {
@@ -122,6 +123,7 @@ pub struct BuilderAttr {
     pub konst: bool,
     pub attributes: Vec<syn::Attribute>,
     pub build_fn_attributes: Vec<syn::Attribute>,
+    pub force_result: bool,
 }
 
 impl BuilderAttr {
@@ -135,6 +137,7 @@ impl BuilderAttr {
             konst: false,
             attributes: Default::default(),
             build_fn_attributes: Default::default(),
+            force_result: false,
         }
     }
 
@@ -296,6 +299,13 @@ impl BuilderAttr {
                     if !attrs.is_empty() {
                         parse_docs(&attrs, ident.span(), &mut out.build_fn_attributes)?;
                     }
+                }
+                Attribute::ForceResult => {
+                    if out.force_result {
+                        bail!(ident.span() => "`force_result` may only be used once");
+                    }
+
+                    out.force_result = true;
                 }
             }
 
