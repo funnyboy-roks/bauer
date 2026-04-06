@@ -4,7 +4,7 @@ use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 use strum::{AsRefStr, IntoStaticStr, VariantArray};
 use syn::{
-    Ident, LitStr, Token, Visibility, braced,
+    Ident, ItemConst, LitStr, Token, Visibility, braced,
     ext::IdentExt,
     parenthesized,
     parse::{Parse, ParseStream},
@@ -138,6 +138,16 @@ impl BuilderAttr {
             attributes: Default::default(),
             build_fn_attributes: Default::default(),
             force_result: false,
+        }
+    }
+
+    pub fn assert_crate(&self) -> ItemConst {
+        let private_module = self.private_module();
+        parse_quote! {
+            const _: () = {
+                #[allow(unused)]
+                pub use #private_module as _;
+            };
         }
     }
 

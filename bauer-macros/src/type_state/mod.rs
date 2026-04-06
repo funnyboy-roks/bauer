@@ -217,6 +217,8 @@ pub fn type_state_builder(
 
     let mut out = TokenStream::new();
 
+    builder_attr.assert_crate().to_tokens(&mut out);
+
     let private_module = builder_attr.private_module();
     out.extend(generic_fields.iter().map(|&f| {
         let FieldIdents { count, set, .. } = &f.idents;
