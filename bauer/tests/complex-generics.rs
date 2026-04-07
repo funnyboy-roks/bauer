@@ -2,114 +2,108 @@
 
 #![allow(unused)]
 
-macro_rules! define {
-    ($kind: literal) => {
-        // Test multiple generic parameters with bounds
-        #[derive(Debug, Clone, PartialEq, Builder)]
-        #[builder(kind = $kind)]
-        struct MultiGeneric<T, U, V>
-        where
-            T: Clone + Send,
-            U: std::fmt::Debug,
-            V: Default,
-        {
-            first: T,
-            second: U,
-            #[builder(default)]
-            third: V,
-            optional: Option<String>,
-        }
-
-        // Test generic with lifetimes and complex nested types
-        #[derive(Builder, Debug)]
-        #[builder(kind = $kind)]
-        struct ComplexLifetime<'a, 'b, T>
-        where
-            T: 'a + Clone,
-        {
-            data: &'a T,
-            metadata: &'b str,
-            #[builder(default)]
-            tags: Vec<&'a str>,
-            nested: Option<Box<T>>,
-        }
-
-        // Test deeply nested generic types
-        #[derive(Builder, Debug)]
-        #[builder(kind = $kind)]
-        struct NestedGenerics<K, V>
-        where
-            K: std::hash::Hash + Eq + Clone,
-            V: Clone,
-        {
-            primary_map: std::collections::HashMap<K, V>,
-            #[builder(default)]
-            secondary_map: std::collections::BTreeMap<String, Vec<V>>,
-            cache: Option<std::collections::HashMap<K, std::collections::HashSet<V>>>,
-        }
-
-        // Test phantom data scenarios
-        #[derive(Builder, Debug)]
-        #[builder(kind = $kind)]
-        struct PhantomGeneric<T, U> {
-            value: String,
-            #[builder(default = "42")]
-            number: i32,
-            #[builder(default)]
-            _phantom: std::marker::PhantomData<(T, U)>,
-        }
-
-        // Test const generics
-        #[derive(Builder, Debug)]
-        #[builder(kind = $kind)]
-        struct ConstGeneric<T, const N: usize>
-        where
-            T: Copy + Default,
-        {
-            data: [T; N],
-            #[builder(default)]
-            dynamic_data: Vec<T>,
-        }
-
-        // Test generic structs with custom trait bounds
-        trait CustomTrait {
-            fn custom_method(&self) -> String;
-        }
-
-        #[derive(Builder, Debug)]
-        #[builder(kind = $kind)]
-        struct TraitBounded<T: CustomTrait + Clone> {
-            item: T,
-            #[builder(default)]
-            collection: Vec<T>,
-        }
-
-        // Test associated types
-        trait Iterator {
-            type Item;
-            fn next(&mut self) -> Option<Self::Item>;
-        }
-
-        #[derive(Builder, Debug)]
-        #[builder(kind = $kind)]
-        struct WithAssociatedTypes<I>
-        where
-            I: Iterator,
-            I::Item: Clone,
-        {
-            iterator: I,
-            current: Option<I::Item>,
-        }
-    };
-}
-
 macro_rules! tests {
     ($kind: literal in mod $module: ident $($unwrap: ident)?) => {
         mod $module {
             use bauer::Builder;
             use std::collections::HashMap;
 
-            define!($kind);
+            // Test multiple generic parameters with bounds
+            #[derive(Debug, Clone, PartialEq, Builder)]
+            #[builder(kind = $kind)]
+            struct MultiGeneric<T, U, V>
+            where
+                T: Clone + Send,
+                U: std::fmt::Debug,
+                V: Default,
+            {
+                first: T,
+                second: U,
+                #[builder(default)]
+                third: V,
+                optional: Option<String>,
+            }
+
+            // Test generic with lifetimes and complex nested types
+            #[derive(Builder, Debug)]
+            #[builder(kind = $kind)]
+            struct ComplexLifetime<'a, 'b, T>
+            where
+                T: 'a + Clone,
+            {
+                data: &'a T,
+                metadata: &'b str,
+                #[builder(default)]
+                tags: Vec<&'a str>,
+                nested: Option<Box<T>>,
+            }
+
+            // Test deeply nested generic types
+            #[derive(Builder, Debug)]
+            #[builder(kind = $kind)]
+            struct NestedGenerics<K, V>
+            where
+                K: std::hash::Hash + Eq + Clone,
+                V: Clone,
+            {
+                primary_map: std::collections::HashMap<K, V>,
+                #[builder(default)]
+                secondary_map: std::collections::BTreeMap<String, Vec<V>>,
+                cache: Option<std::collections::HashMap<K, std::collections::HashSet<V>>>,
+            }
+
+            // Test phantom data scenarios
+            #[derive(Builder, Debug)]
+            #[builder(kind = $kind)]
+            struct PhantomGeneric<T, U> {
+                value: String,
+                #[builder(default = "42")]
+                number: i32,
+                #[builder(default)]
+                _phantom: std::marker::PhantomData<(T, U)>,
+            }
+
+            // Test const generics
+            #[derive(Builder, Debug)]
+            #[builder(kind = $kind)]
+            struct ConstGeneric<T, const N: usize>
+            where
+                T: Copy + Default,
+            {
+                data: [T; N],
+                #[builder(default)]
+                dynamic_data: Vec<T>,
+            }
+
+            // Test generic structs with custom trait bounds
+            trait CustomTrait {
+                fn custom_method(&self) -> String;
+            }
+
+            #[derive(Builder, Debug)]
+            #[builder(kind = $kind)]
+            struct TraitBounded<T: CustomTrait + Clone> {
+                item: T,
+                #[builder(default)]
+                collection: Vec<T>,
+            }
+
+            // Test associated types
+            trait Iterator {
+                type Item;
+                fn next(&mut self) -> Option<Self::Item>;
+            }
+
+            #[derive(Builder, Debug)]
+            #[builder(kind = $kind)]
+            struct WithAssociatedTypes<I>
+            where
+                I: Iterator,
+                I::Item: Clone,
+            {
+                iterator: I,
+                current: Option<I::Item>,
+            }
 
             #[test]
             fn test_multi_generic_with_bounds() {
