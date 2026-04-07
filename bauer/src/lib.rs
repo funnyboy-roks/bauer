@@ -97,7 +97,7 @@
 //! | [`collector`]                          | Use a custom collector for converting into the target data structure (default: [`FromIterator::from_iter`]) | `collector = <function>`           |
 //! | [`into`]                               | Make functions accept `impl `[`Into`]`<Field>`                                                              | `into`                             |
 //! | [`tuple`]                              | Make functions accept tuple items as separate arguments                                                     | `tuple` or `tuple(x, y)`           |
-//! | [`adapter`]                            | Fully cusotmise how functions take arguments and convert them into the field value                          | `adapter = |<arg>: <ty>| <expr>`   |
+//! | [`adapter`]                            | Fully cusotmise how functions take arguments and convert them into the field value                          | `adapter = \|<arg>: <ty>\| <expr>` |
 //! | [`rename`]                             | Rename the function that is generated for the field                                                         | `rename = <name>`                  |
 //! | [`skip_prefix`/`skip_suffix`]          | Skip using the prefix/suffix from the builder attribute                                                     | `skip_prefix` or `skip_suffix`     |
 //! | [`attribute`/`attributes`][field_attr] | Set attribute(s) on the function generated for this field                                                   | `attribute(#[foo])`                |
