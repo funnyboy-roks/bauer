@@ -52,6 +52,50 @@ macro_rules! tests {
                 }
             }
 
+            mod array {
+                use bauer::Builder;
+                #[derive(Debug, Builder)]
+                struct Repeat {
+                    #[builder(repeat)]
+                    exact: [u32; 3],
+                }
+
+                #[test]
+                fn absent_err() {
+                    let err = Repeat::builder().build().unwrap_err();
+                    assert_eq!(err, RepeatBuildError::RangeExact(0));
+                }
+
+                #[test]
+                fn less_err() {
+                    let err = Repeat::builder().exact(1).build().unwrap_err();
+                    assert_eq!(err, RepeatBuildError::RangeExact(1));
+                }
+
+                #[test]
+                fn more_err() {
+                    let err = Repeat::builder()
+                        .exact(1)
+                        .exact(2)
+                        .exact(3)
+                        .exact(4)
+                        .build()
+                        .unwrap_err();
+                    assert_eq!(err, RepeatBuildError::RangeExact(4));
+                }
+
+                #[test]
+                fn equal_ok() {
+                    let ok = Repeat::builder()
+                        .exact(1)
+                        .exact(2)
+                        .exact(3)
+                        .build()
+                        .unwrap();
+                    assert_eq!(ok.exact, [1, 2, 3]);
+                }
+            }
+
             mod exact {
                 use bauer::Builder;
                 #[derive(Debug, Builder)]
