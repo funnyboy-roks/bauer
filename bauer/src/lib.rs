@@ -67,9 +67,9 @@
 //! | [`visibility`]                               | Change the visibility of the created builder (defaults to the same visibility as the struct)                | `prefix = "set_"` or `suffix = "_field"`     |
 //! | [`crate`]                                    | Override the name of the crate when expanding macros (defaults to `bauer`)                                  | `prefix = "set_"` or `suffix = "_field"`     |
 //! | [`attribute`/`attributes`]                   | Set attribute(s) on the generated builder struct                                                            | `attribute(#[foo])`                          |
-//! | [`build_fn`]                                 | Set details about the build function (`attributes`, `doc`, `rename`)                                        | `build_fn(...)`                              |
 //! | [`doc`/`docs`]                               | Set documentation items on the generated builder struct                                                     | `doc(<doc strings>)`                         |
-//! | [`force_result`]                             | Force the `.build()` function to _always_ produce a result, even when the build is infallible               | `force_result`                               |
+//! | [`build_fn`]                                 | Set details about the build function (`attributes`, `doc`, `rename`)                                        | `build_fn(...)`                              |
+//! | [`error`]                                    | Set details about the generated error enum (`attributes`, `doc`, `rename`, `force`)                         | `error(...)`                                 |
 //!
 //! [`kind`]: Builder#kind
 //! [`const`]: Builder#const
@@ -77,9 +77,9 @@
 //! [`visibility`]: Builder#visibility
 //! [`crate`]: Builder#crate
 //! [`attribute`/`attributes`]: Builder#attributes
-//! [`build_fn`]: Builder#build_fn
 //! [`doc`/`docs`]: Builder#doc
-//! [`force_result`]: Builder#force_result
+//! [`build_fn`]: Builder#build_fn
+//! [`error`]: Builder#error
 //!
 //! ## Field Attributes
 //!
@@ -147,13 +147,13 @@
 /// ## Type-State Builder
 ///
 /// If the builder kind is `"type-state"`, then all errors will be presented as type-errors at
-/// compile-time and the `.build()` function will not return a [`Result`]. (unless [`force_result`]
-/// is set).
+/// compile-time and the `.build()` function will not return a [`Result`]. (unless
+/// [`error`]`(force)` is set).
 ///
 /// ## Forcing Results
 ///
 /// If you wish to force the generated `.build()` function to always return a [`Result`], add the
-/// [`force_result`] attribute to the builder.
+/// [`error`]`(force)` attribute to the builder.
 ///
 /// # Builder Attributes
 ///
@@ -400,14 +400,16 @@
 /// attributes that may be specified here:
 ///
 /// - `attributes` - Specify attributes to be applied to error enum (see
-///   [`attributes`](#attributes))
-/// - `doc` - Add documentation to the generated error enum (see [`doc`](#doc))
-/// - `rename = <name>` - Rename the error enum from the default `{struct}BuildError`
+///   [`attributes`](#attributes)) _[This field is ignored on Type-State builders]_
+/// - `doc` - Add documentation to the generated error enum (see [`doc`](#doc)) _[This field is ignored on Type-State builders]_
+/// - `rename = <name>` - Rename the error enum from the default `{struct}BuildError` _[This field is ignored on Type-State builders]_
 /// - `force` - Force the builder to return an error.  This is the error enum for Owned and
 ///   Borrowed builders, and [`Infallible`] on Type-State.
 ///
 /// The contents may be wrapped with either `()` or `{}` and attributes may optionally be separated
 /// using commas.
+///
+/// [`Infallible`]: std::convert::Infallible
 ///
 /// ```
 /// # use bauer_macros::Builder;
@@ -776,9 +778,9 @@
 /// }
 /// ```
 ///
-/// [`force_result`]: #force_result
 /// [`prefix`]:       #prefixsuffix
 /// [`suffix`]:       #prefixsuffix
+/// [`error`]:        #error
 ///
 /// [`collector`]:    #collector
 /// [`repeat`]:       #repeat
