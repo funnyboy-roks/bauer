@@ -1,5 +1,3 @@
-use crate::my_mod::Foo;
-
 mod my_mod {
     use bauer::Builder;
     #[derive(Builder)]
@@ -23,7 +21,11 @@ mod my_mod {
 
 #[test]
 fn type_state_visiblity() {
-    let b: Foo = Foo::builder().field(6).multiple(1).multiple(2).build();
+    let b: my_mod::Foo = my_mod::Foo::builder()
+        .field(6)
+        .multiple(1)
+        .multiple(2)
+        .build();
     assert_eq!(b.field(), 6);
     assert_eq!(b.multiple(), [1, 2]);
 }
