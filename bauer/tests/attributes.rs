@@ -38,10 +38,12 @@ macro_rules! tests {
                             static STRUCT_ATTRIBUTE_SET: bool = true;
                         )]
                     ),
-                    build_fn_attributes(
-                        #[attribute::pre(
-                            const BUILD_ATTRIBUTE_SET: bool = true;
-                        )]
+                    build_fn(
+                        attributes(
+                            #[attribute::pre(
+                                const BUILD_ATTRIBUTE_SET: bool = true;
+                            )]
+                        )
                     ),
                 )]
                 pub struct Struct {
@@ -69,10 +71,12 @@ macro_rules! tests {
                             static STRUCT_ATTRIBUTE_SET: bool = true;
                         )]
                     },
-                    build_fn_attributes {
-                        #[attribute::pre(
-                            const BUILD_ATTRIBUTE_SET: bool = true;
-                        )]
+                    build_fn {
+                        attributes {
+                            #[attribute::pre(
+                                const BUILD_ATTRIBUTE_SET: bool = true;
+                            )]
+                        }
                     },
                 )]
                 pub struct Struct {

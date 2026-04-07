@@ -12,9 +12,12 @@ use syn::{
     token::{Brace, Paren},
 };
 
-use crate::util::{
-    OptionalToken,
-    parse::{parse_attributes, parse_docs},
+use crate::{
+    attr::build_fn::BuildFnAttr,
+    util::{
+        OptionalToken,
+        parse::{parse_attributes, parse_docs},
+    },
 };
 
 macro_rules! bail {
@@ -71,10 +74,8 @@ enum Attribute {
     Const,
     #[allow(clippy::enum_variant_names)]
     Attributes,
-    #[allow(clippy::enum_variant_names)]
-    BuildFnAttributes,
+    BuildFn,
     Doc,
-    BuildFnDoc,
     ForceResult,
 }
 
@@ -86,7 +87,6 @@ impl Attribute {
 
         match self {
             Self::Attributes => ident == "attribute",
-            Self::BuildFnAttributes => ident == "build_fn_attribute",
             _ => false,
         }
     }
@@ -122,7 +122,7 @@ pub struct BuilderAttr {
     pub krate: Ident,
     pub konst: bool,
     pub attributes: Vec<syn::Attribute>,
-    pub build_fn_attributes: Vec<syn::Attribute>,
+    pub build_fn: BuildFnAttr,
     pub force_result: bool,
 }
 
@@ -136,7 +136,7 @@ impl BuilderAttr {
             krate: format_ident!("bauer"),
             konst: false,
             attributes: Default::default(),
-            build_fn_attributes: Default::default(),
+            build_fn: Default::default(),
             force_result: false,
         }
     }
@@ -262,21 +262,19 @@ impl BuilderAttr {
                         parse_attributes(&attrs, &mut out.attributes)?;
                     }
                 }
-                Attribute::BuildFnAttributes => {
-                    let attrs;
+                Attribute::BuildFn => {
+                    let build_fn;
 
                     let la = input.lookahead1();
                     if la.peek(Paren) {
-                        parenthesized!(attrs in input);
+                        parenthesized!(build_fn in input);
                     } else if la.peek(Brace) {
-                        braced!(attrs in input);
+                        braced!(build_fn in input);
                     } else {
                         return Err(la.error());
                     }
 
-                    if !attrs.is_empty() {
-                        parse_attributes(&attrs, &mut out.build_fn_attributes)?;
-                    }
+                    out.build_fn = BuildFnAttr::parse(&build_fn)?;
                 }
                 Attribute::Doc => {
                     let attrs;
@@ -292,22 +290,6 @@ impl BuilderAttr {
 
                     if !attrs.is_empty() {
                         parse_docs(&attrs, ident.span(), &mut out.attributes)?;
-                    }
-                }
-                Attribute::BuildFnDoc => {
-                    let attrs;
-
-                    let la = input.lookahead1();
-                    if la.peek(Paren) {
-                        parenthesized!(attrs in input);
-                    } else if la.peek(Brace) {
-                        braced!(attrs in input);
-                    } else {
-                        return Err(la.error());
-                    }
-
-                    if !attrs.is_empty() {
-                        parse_docs(&attrs, ident.span(), &mut out.build_fn_attributes)?;
                     }
                 }
                 Attribute::ForceResult => {

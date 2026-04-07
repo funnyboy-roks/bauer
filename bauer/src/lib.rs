@@ -67,9 +67,8 @@
 //! | [`visibility`]                               | Change the visibility of the created builder (defaults to the same visibility as the struct)                | `prefix = "set_"` or `suffix = "_field"`     |
 //! | [`crate`]                                    | Override the name of the crate when expanding macros (defaults to `bauer`)                                  | `prefix = "set_"` or `suffix = "_field"`     |
 //! | [`attribute`/`attributes`]                   | Set attribute(s) on the generated builder struct                                                            | `attribute(#[foo])`                          |
-//! | [`build_fn_attribute`/`build_fn_attributes`] | Set attribute(s) on the generated `.build()` function                                                       | `build_fn_attribute(#[foo])`                 |
+//! | [`build_fn`]                                 | Set details about the build function (`attributes`, `doc`, `rename`)                                        | `build_fn(...)`                              |
 //! | [`doc`/`docs`]                               | Set documentation items on the generated builder struct                                                     | `doc(<doc strings>)`                         |
-//! | [`build_fn_doc`/`build_fn_docs`]             | Set documentation items on the generated `.build()` function                                                | `build_fn_doc(<doc strings>)`                |
 //! | [`force_result`]                             | Force the `.build()` function to _always_ produce a result, even when the build is infallible               | `force_result`                               |
 //!
 //! [`kind`]: Builder#kind
@@ -77,10 +76,9 @@
 //! [`prefix`/`suffix`]: Builder#prefixsuffix
 //! [`visibility`]: Builder#visibility
 //! [`crate`]: Builder#crate
-//! [`attribute`/`attributes`]: Builder#attributes--build_fn_attributes
-//! [`build_fn_attribute`/`build_fn_attributes`]: Builder#attributes--build_fn_attributes
-//! [`doc`/`docs`]: Builder#doc--build_fn_doc
-//! [`build_fn_doc`/`build_fn_docs`]: Builder#doc--build_fn_doc
+//! [`attribute`/`attributes`]: Builder#attributes
+//! [`build_fn`]: Builder#build_fn
+//! [`doc`/`docs`]: Builder#doc
 //! [`force_result`]: Builder#force_result
 //!
 //! ## Field Attributes
@@ -114,8 +112,8 @@
 //! [`adapter`]: Builder#adapter
 //! [`rename`]: Builder#rename
 //! [`skip_prefix`/`skip_suffix`]: Builder#skip_prefixskip_suffix
-//! [field_attr]: Builder#attributes
-//! [field_doc]: Builder#doc
+//! [field_attr]: Builder#attributes-1
+//! [field_doc]: Builder#doc-1
 
 /// The main macro
 ///
@@ -311,14 +309,10 @@
 /// }
 /// ```
 ///
-/// ## **`attributes`** / **`build_fn_attributes`**
+/// ## **`attributes`**
 ///
-/// Any attributes specified in `attributes` will be added to the generated builder struct.
-/// Similarly, any attributes specified in `build_fn_attributes` will be added to generated
-/// `.build()` function.
-///
-/// You may also use `attribute` instead of `attributes` and `build_fn_attribute` instead of
-/// `build_fn_attributes`.
+/// Any attributes specified in `attributes` will be added to the generated builder for this field.
+/// You may also use `attribute` instead of `attributes`.
 ///
 /// The contents may be wrapped with either `()` or `{}` and attributes may optionally be separated
 /// using commas.
@@ -332,14 +326,13 @@
 ///         #[my_attribute]
 ///         #[my_attribute2]
 ///     ),
-///     build_fn_attributes(#[my_attribute], #[my_attribute2]),
 /// )]
 /// pub struct Foo {
 ///     field: u32,
 /// }
 /// ```
 ///
-/// ## **`doc`** / **`build_fn_doc`**
+/// ## **`doc`**
 ///
 /// Add documentation to the generated builder struct or the generated `.build()` function
 ///
@@ -356,13 +349,50 @@
 ///     doc {
 ///         /// Some documentation for my field
 ///     },
-///     build_fn_doc {
-///         /// Some documentation for my field
+/// )]
+/// pub struct Foo {
+///     field: u32,
+/// }
+/// ```
+///
+///
+/// ## **`build_fn`**
+///
+/// Specify details surrounding the generated `.build()` function on the builder.  There are a few
+/// attributes that may be specified here:
+///
+/// - `attributes` - Specify attributes to be applied to the build function (see
+///   [`attributes`](#attributes))
+/// - `doc` - Add documentation to the generated build function (see [`doc`](#doc))
+/// - `rename` - Rename the build function from the default of `build`
+///
+/// The contents may be wrapped with either `()` or `{}` and attributes may optionally be separated
+/// using commas.
+///
+/// ```
+/// # use bauer_macros::Builder;
+/// # use attribute::{my_attribute, my_attribute2};
+/// #[derive(Builder)]
+/// #[builder(
+///     build_fn {
+///         attributes {
+///             #[my_attribute]
+///             #[my_attribute2]
+///         },
+///         doc {
+///             /// Some documentation about the build function
+///         },
+///         rename = "finish",
 ///     },
 /// )]
 /// pub struct Foo {
 ///     field: u32,
 /// }
+///
+/// let foo: Foo = Foo::builder()
+///     .field(3)
+///     .finish()?;
+/// # Ok::<_, Box<dyn std::error::Error>>(())
 /// ```
 ///
 /// ## **`force_result`**

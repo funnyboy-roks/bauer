@@ -6,7 +6,9 @@ macro_rules! do_thing {
             #[derive(Builder)]
             #[builder(
                 doc $($inner)*,
-                build_fn_doc $($inner)*,
+                build_fn {
+                    doc $($inner)*
+                }
             )]
             pub struct Struct {
                 #[builder(

@@ -9,7 +9,7 @@ use syn::{
 
 use crate::{
     BuilderAttr, BuilderField, Len, Repeat,
-    field::FieldIdents,
+    attr::field::FieldIdents,
     type_state::generics::{CustomImplGenerics, CustomTypeGenerics},
     util::{ReplaceTrait, ensure_no_conflict, known_idents, parallel_assign},
 };
@@ -178,14 +178,15 @@ fn build_fn(
     let (_, default_ty_generics, _) = input.generics.split_for_impl();
 
     let konst = builder_attr.konst_kw();
-    let build_fn_attributes = &builder_attr.build_fn_attributes;
 
+    let build_fn_attributes = &builder_attr.build_fn.attributes;
+    let build_fn_name = &builder_attr.build_fn.name;
     let (build_return, build_return_value, from) = if builder_attr.force_result {
         (
             quote! { ::core::result::Result<#ident #default_ty_generics, ::core::convert::Infallible> },
             quote! { Ok(val) },
             quote! {
-                let Ok(built) = builder.build();
+                let Ok(built) = builder.#build_fn_name();
                 built
             },
         )
@@ -193,14 +194,14 @@ fn build_fn(
         (
             quote! { #ident #default_ty_generics },
             quote! { val },
-            quote! { builder.build() },
+            quote! { builder.#build_fn_name() },
         )
     };
 
     quote! {
         impl #impl_generics #builder #ty_generics #builder_where {
             #(#build_fn_attributes)*
-            #builder_vis #konst fn build(self) -> #build_return {
+            #builder_vis #konst fn #build_fn_name(self) -> #build_return {
                 #[allow(deprecated)] // #inner is set to deprecated
                 let val = {
                     #set_not_skipped_fields
