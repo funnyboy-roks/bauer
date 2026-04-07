@@ -76,21 +76,21 @@ a `#[builder(..)]` attribute.  For a more detailed description and examples, che
 | [`visibility`]                               | Change the visibility of the created builder (defaults to the same visibility as the struct)                | `prefix = "set_"` or `suffix = "_field"`     |
 | [`crate`]                                    | Override the name of the crate when expanding macros (defaults to `bauer`)                                  | `prefix = "set_"` or `suffix = "_field"`     |
 | [`attribute`/`attributes`]                   | Set attribute(s) on the generated builder struct                                                            | `attribute(#[foo])`                          |
-| [`build_fn_attribute`/`build_fn_attributes`] | Set attribute(s) on the generated `.build()` function                                                       | `build_fn_attribute(#[foo])`                 |
 | [`doc`/`docs`]                               | Set documentation items on the generated builder struct                                                     | `doc(<doc strings>)`                         |
-| [`build_fn_doc`/`build_fn_docs`]             | Set documentation items on the generated `.build()` function                                                | `build_fn_doc(<doc strings>)`                |
-| [`force_result`]                             | Force the `.build()` function to _always_ produce a result, even when the build is infallible               | `force_result`                               |
+| [`build_fn`]                                 | Set details about the build function (`attributes`, `doc`, `rename`)                                        | `build_fn(...)`                              |
+| [`builder_fn`]                               | Set details about the builder function added to the struct (`attributes`, `doc`, `rename`)                  | `builder_fn(...)`                            |
+| [`error`]                                    | Set details about the generated error enum (`attributes`, `doc`, `rename`, `force`)                         | `error(...)`                                 |
 
 [`kind`]: https://docs.rs/bauer/latest/bauer/derive.Builder.html#kind
 [`const`]: https://docs.rs/bauer/latest/bauer/derive.Builder.html#const
 [`prefix`/`suffix`]: https://docs.rs/bauer/latest/bauer/derive.Builder.html#prefixsuffix
 [`visibility`]: https://docs.rs/bauer/latest/bauer/derive.Builder.html#visibility
 [`crate`]: https://docs.rs/bauer/latest/bauer/derive.Builder.html#crate
-[`attribute`/`attributes`]: https://docs.rs/bauer/latest/bauer/derive.Builder.html#attributes--build_fn_attributes
-[`build_fn_attribute`/`build_fn_attributes`]: https://docs.rs/bauer/latest/bauer/derive.Builder.html#attributes--build_fn_attributes
-[`doc`/`docs`]: https://docs.rs/bauer/latest/bauer/derive.Builder.html#doc--build_fn_doc
-[`build_fn_doc`/`build_fn_docs`]: https://docs.rs/bauer/latest/bauer/derive.Builder.html#doc--build_fn_doc
-[`force_result`]: https://docs.rs/bauer/latest/bauer/derive.Builder.html#force_result
+[`attribute`/`attributes`]: https://docs.rs/bauer/latest/bauer/derive.Builder.html#attributes
+[`doc`/`docs`]: https://docs.rs/bauer/latest/bauer/derive.Builder.html#doc
+[`build_fn`]: https://docs.rs/bauer/latest/bauer/derive.Builder.html#build_fn
+[`builder_fn`]: https://docs.rs/bauer/latest/bauer/derive.Builder.html#builder_fn
+[`error`]: https://docs.rs/bauer/latest/bauer/derive.Builder.html#error
 
 ### Field Attributes
 
@@ -123,8 +123,8 @@ All of the attributes that may be applied to fields are listed below.  These go 
 [`adapter`]: https://docs.rs/bauer/latest/bauer/derive.Builder.html#adapter
 [`rename`]: https://docs.rs/bauer/latest/bauer/derive.Builder.html#rename
 [`skip_prefix`/`skip_suffix`]: https://docs.rs/bauer/latest/bauer/derive.Builder.html#skip_prefixskip_suffix
-[field_attr]: https://docs.rs/bauer/latest/bauer/derive.Builder.html#attributes
-[field_doc]: https://docs.rs/bauer/latest/bauer/derive.Builder.html#doc
+[field_attr]: https://docs.rs/bauer/latest/bauer/derive.Builder.html#attributes-1
+[field_doc]: https://docs.rs/bauer/latest/bauer/derive.Builder.html#doc-1
 
 <!-- cargo-rdme end -->
 
