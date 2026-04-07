@@ -1,8 +1,6 @@
-use proc_macro2::TokenStream;
+use proc_macro2::{Group, TokenStream, TokenTree};
 use quote::ToTokens;
-use syn::{
-    Ident, Token, bracketed, fold::Fold, parse::Parse, parse_macro_input, punctuated::Punctuated,
-};
+use syn::{Ident, Token, bracketed, parse::Parse, parse_macro_input, punctuated::Punctuated};
 
 /// Place all tokens within the parenthesis before the item
 #[proc_macro_attribute]
@@ -50,36 +48,49 @@ pub fn dup(
     attr: proc_macro::TokenStream,
     item: proc_macro::TokenStream,
 ) -> proc_macro::TokenStream {
-    struct Idents(Vec<Ident>);
+    struct Idents(Vec<TokenTree>);
 
     impl Parse for Idents {
         fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
             if input.peek(Ident) {
-                let i: Ident = input.parse()?;
+                let i = input.parse()?;
                 Ok(Self(vec![i]))
             } else {
                 let i;
                 bracketed!(i in input);
-                let i = i.parse_terminated(Ident::parse, Token![,])?;
+                let i: Punctuated<_, Token![,]> = Punctuated::parse_terminated(&i)?;
                 Ok(Self(i.into_iter().collect()))
             }
         }
     }
 
-    impl Fold for Idents {
-        fn fold_ident(&mut self, i: proc_macro2::Ident) -> proc_macro2::Ident {
-            if self.0.len() == 1 && i == "NAME" {
-                return self.0[0].clone();
-            }
+    fn replace_ident(idents: &Idents, ts: TokenStream) -> TokenStream {
+        let mut out = TokenStream::new();
+        for t in ts {
+            match t {
+                TokenTree::Group(group) => {
+                    Group::new(group.delimiter(), replace_ident(idents, group.stream()))
+                        .to_tokens(&mut out);
+                }
+                TokenTree::Ident(i) => {
+                    if idents.0.len() == 1 && i == "NAME" {
+                        idents.0[0].to_tokens(&mut out);
+                        continue;
+                    }
 
-            let name = i.to_string();
-            if let Some(rest) = name.strip_prefix("NAME_") {
-                let x: usize = rest.parse().unwrap();
-                self.0[x].clone()
-            } else {
-                i
+                    let name = i.to_string();
+                    if let Some(rest) = name.strip_prefix("NAME_") {
+                        let x: usize = rest.parse().unwrap();
+                        idents.0[x].to_tokens(&mut out);
+                    } else {
+                        i.to_tokens(&mut out);
+                    }
+                }
+                TokenTree::Punct(punct) => punct.to_tokens(&mut out),
+                TokenTree::Literal(literal) => literal.to_tokens(&mut out),
             }
         }
+        out
     }
 
     let idents: Punctuated<Idents, Token![,]> =
@@ -90,18 +101,21 @@ pub fn dup(
         syn::Item::Mod(mut item_mod) => {
             let mut content = Vec::new();
             let old_content = &item_mod.content.as_ref().unwrap().1;
-            for mut ident in idents {
+            for ident in idents {
                 for item in old_content {
-                    content.push(ident.fold_item(item.clone()))
+                    content.push(syn::Item::Verbatim(replace_ident(
+                        &ident,
+                        item.into_token_stream(),
+                    )))
                 }
             }
             item_mod.content.as_mut().unwrap().1 = content;
             out.extend(item_mod.into_token_stream());
         }
         item => {
-            for mut ident in idents {
-                let ts = ident.fold_item(item.clone());
-                out.extend(ts.into_token_stream());
+            for ident in idents {
+                let ts = replace_ident(&ident, item.to_token_stream());
+                out.extend(ts);
             }
         }
     }

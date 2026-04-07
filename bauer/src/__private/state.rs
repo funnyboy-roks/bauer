@@ -55,15 +55,6 @@ where
     const COUNT: usize = 1 + <Count<R>>::COUNT;
 }
 
-/// `N`
-pub trait Eq<const N: usize>: __private::sealed::Sealed {}
-/// `LOW..HIGH`
-pub trait RangeExclusive<const LOW: usize, const HIGH: usize>: __private::sealed::Sealed {}
-/// `LOW..=HIGH`
-pub trait RangeInclusive<const LOW: usize, const HIGH: usize>: __private::sealed::Sealed {}
-/// `LOW..`
-pub trait AtLeast<const LOW: usize>: __private::sealed::Sealed {}
-
 #[cfg(test)]
 mod test {
     use std::mem::MaybeUninit;
