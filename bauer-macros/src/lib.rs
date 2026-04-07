@@ -56,12 +56,12 @@ pub fn builder(input: TokenStream) -> TokenStream {
     let build_err = format_ident!("{}BuildError", ident);
     let inner = format_ident!("__unsafe_builder_content");
 
+    let mut tuple_index = 0;
     let fields: Vec<_> = match data_struct.fields {
         syn::Fields::Named(ref fields_named) => match fields_named
             .named
             .iter()
-            .enumerate()
-            .map(|(index, f)| BuilderField::parse(f, &attr, ident, index))
+            .map(|f| BuilderField::parse(f, &attr, ident, &mut tuple_index))
             .collect::<Result<_, _>>()
         {
             Ok(v) => v,

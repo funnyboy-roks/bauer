@@ -91,6 +91,7 @@
 //!
 //! |   Attribute                            | Description                                                                                                 | Usage                              |
 //! | -------------------------------------- | ----------------------------------------------------------------------------------------------------------- | ---------------------------------- |
+//! | [`skip`]                               | Skip this field in the builder.  No other attributes may be specified when this is used.                    | `skip` or `skip = <value>`         |
 //! | [`default`]                            | Specify a default value or use [`Default`]                                                                  | `default` or `default = <value>`   |
 //! | [`repeat`]                             | Allow repating call to add items to a structure                                                             | `repeat` or `repeat = <type>`      |
 //! | [`repeat_n`]                           | Contorl the number times a `repeat` field is allowed to be set.  This controls the length of the final data | `repeat_n = 1..` or `repeat_n = 4` |
@@ -103,6 +104,7 @@
 //! | [`attribute`/`attributes`][field_attr] | Set attribute(s) on the function generated for this field                                                   | `attribute(#[foo])`                |
 //! | [`doc`/`docs`][field_doc]              | Set documentation items on the function generated for this field                                            | `doc(<doc strings>)`               |
 //!
+//! [`skip`]: Builder#skip
 //! [`default`]: Builder#default
 //! [`repeat`]: Builder#repeat
 //! [`repeat_n`]: Builder#repeat_n
@@ -383,6 +385,34 @@
 /// ```
 ///
 /// # Fields Attributes
+///
+/// ## **`skip`**
+///
+/// Argument: Optional Expression
+///
+/// Prevent a field from being in the builder.  If provided with no expression, the value will be
+/// created from [`Default`].  The expression provided may access the values of all other fields
+/// that are not skipped.  These can be accessed like variables using the name of the field.
+///
+/// ```
+/// # use bauer_macros::Builder;
+/// #[derive(Builder)]
+/// pub struct Foo {
+///     #[builder(skip)]
+///     a: u32,
+///     #[builder(skip = *c as f32)] // uses field `c`
+///     b: f32,
+///     c: u32,
+/// }
+///
+/// let foo = Foo::builder()
+///     .c(42)
+///     .build()?;
+/// assert_eq!(foo.a, 0);
+/// assert_eq!(foo.b, 42.0);
+/// assert_eq!(foo.c, 42);
+/// # Ok::<_, Box<dyn std::error::Error>>(())
+/// ```
 ///
 /// ## **`default`**
 ///

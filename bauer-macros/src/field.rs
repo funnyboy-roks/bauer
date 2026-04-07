@@ -204,7 +204,7 @@ pub struct BuilderField {
     pub missing_err: Option<Ident>,
     pub wrapped_option: bool,
     pub idents: FieldIdents,
-    pub index: usize,
+    pub tuple_index: usize,
 }
 
 impl BuilderField {
@@ -239,7 +239,7 @@ impl BuilderField {
 
     pub fn tuple_index(&self) -> syn::Index {
         syn::Index {
-            index: self.index as _,
+            index: self.tuple_index as _,
             span: self.ident.span(),
         }
     }
@@ -318,7 +318,7 @@ impl BuilderField {
         value: &Field,
         builder_attr: &BuilderAttr,
         struct_name: &Ident,
-        index: usize,
+        tuple_index: &mut usize,
     ) -> syn::Result<Self> {
         let ident = value.ident.as_ref().expect("We only support named fields");
 
@@ -347,6 +347,12 @@ impl BuilderField {
                 .for_each(|a| attr.attributes.push(a))
         }
 
+        let this_tuple_index = *tuple_index;
+
+        if !attr.skip.is_set() {
+            *tuple_index += 1;
+        }
+
         Ok(BuilderField {
             ident: ident.clone(),
             ty: ty.clone(),
@@ -366,7 +372,7 @@ impl BuilderField {
             attr,
             wrapped_option,
             idents: FieldIdents::new(struct_name, ident),
-            index,
+            tuple_index: this_tuple_index,
         })
     }
 }
