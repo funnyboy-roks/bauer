@@ -100,18 +100,20 @@ All of the attributes that may be applied to fields are listed below.  These go 
 
 |   Attribute                            | Description                                                                                                 | Usage                              |
 | -------------------------------------- | ----------------------------------------------------------------------------------------------------------- | ---------------------------------- |
+| [`skip`]                               | Skip this field in the builder.  No other attributes may be specified when this is used.                    | `skip` or `skip = <value>`         |
 | [`default`]                            | Specify a default value or use [`Default`]                                                                  | `default` or `default = <value>`   |
 | [`repeat`]                             | Allow repating call to add items to a structure                                                             | `repeat` or `repeat = <type>`      |
 | [`repeat_n`]                           | Contorl the number times a `repeat` field is allowed to be set.  This controls the length of the final data | `repeat_n = 1..` or `repeat_n = 4` |
 | [`collector`]                          | Use a custom collector for converting into the target data structure (default: [`FromIterator::from_iter`]) | `collector = <function>`           |
 | [`into`]                               | Make functions accept `impl `[`Into`]`<Field>`                                                              | `into`                             |
 | [`tuple`]                              | Make functions accept tuple items as separate arguments                                                     | `tuple` or `tuple(x, y)`           |
-| [`adapter`]                            | Fully cusotmise how functions take arguments and convert them into the field value                          | `adapter = |<arg>: <ty>| <expr>`   |
+| [`adapter`]                            | Fully cusotmise how functions take arguments and convert them into the field value                          | `adapter = \|<arg>: <ty>\| <expr>` |
 | [`rename`]                             | Rename the function that is generated for the field                                                         | `rename = <name>`                  |
 | [`skip_prefix`/`skip_suffix`]          | Skip using the prefix/suffix from the builder attribute                                                     | `skip_prefix` or `skip_suffix`     |
 | [`attribute`/`attributes`][field_attr] | Set attribute(s) on the function generated for this field                                                   | `attribute(#[foo])`                |
 | [`doc`/`docs`][field_doc]              | Set documentation items on the function generated for this field                                            | `doc(<doc strings>)`               |
 
+[`skip`]: https://docs.rs/bauer/latest/bauer/derive.Builder.html#skip
 [`default`]: https://docs.rs/bauer/latest/bauer/derive.Builder.html#default
 [`repeat`]: https://docs.rs/bauer/latest/bauer/derive.Builder.html#repeat
 [`repeat_n`]: https://docs.rs/bauer/latest/bauer/derive.Builder.html#repeat_n
