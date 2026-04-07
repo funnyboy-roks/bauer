@@ -1,12 +1,12 @@
 #![allow(dead_code)]
+
 macro_rules! tests {
-    ($kind: literal in mod $module: ident $($unwrap: ident)?) => {
+    ($kind: literal in mod $module: ident $error: path) => {
         mod $module {
             use bauer::Builder;
-            use std::convert::Infallible;
 
             #[derive(Debug, Builder, PartialEq)]
-            #[builder(kind = $kind, prefix = "set_", force_result)]
+            #[builder(kind = $kind, prefix = "set_", error(force))]
             struct Struct {
                 /// Hello
                 #[builder(default = "42")]
@@ -21,7 +21,7 @@ macro_rules! tests {
 
             #[test]
             fn it_works() {
-                let Ok(s): Result<Struct, Infallible> = Struct::builder()
+                let Ok(s): Result<Struct, $error> = Struct::builder()
                     .set_field_a(69)
                     .set_field_b(true)
                     .set_field_c("hello world")
@@ -42,6 +42,6 @@ macro_rules! tests {
     };
 }
 
-tests!("borrowed" in mod borrowed unwrap);
-tests!("owned" in mod owned unwrap);
-tests!("type-state" in mod type_state);
+tests!("borrowed"   in mod   borrowed         StructBuildError);
+tests!("owned"      in mod      owned         StructBuildError);
+tests!("type-state" in mod type_state std::convert::Infallible);

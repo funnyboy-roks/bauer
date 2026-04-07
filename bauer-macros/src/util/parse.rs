@@ -1,7 +1,10 @@
 use proc_macro2::Span;
 use syn::{
-    AttrStyle, Ident, Meta, Token, bracketed, parse::ParseStream, parse_quote_spanned,
+    AttrStyle, Ident, Meta, Token, braced, bracketed, parenthesized,
+    parse::{ParseBuffer, ParseStream},
+    parse_quote_spanned,
     spanned::Spanned,
+    token::{Brace, Paren},
 };
 
 // from https://docs.rs/syn/latest/src/syn/attr.rs.html#681-689
@@ -73,4 +76,19 @@ pub fn parse_docs(
         }
     }
     Ok(())
+}
+
+pub fn parethesised_or_braced<'a>(input: &'a ParseBuffer<'a>) -> syn::Result<ParseBuffer<'a>> {
+    let inner;
+
+    let la = input.lookahead1();
+    if la.peek(Paren) {
+        parenthesized!(inner in input);
+    } else if la.peek(Brace) {
+        braced!(inner in input);
+    } else {
+        return Err(la.error());
+    }
+
+    Ok(inner)
 }

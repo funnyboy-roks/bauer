@@ -21,7 +21,7 @@ fn add_2(iter: impl Iterator<Item = u32>) -> Vec<u32> {
 )]
 mod module {
     #[derive(Debug, bauer::Builder, PartialEq)]
-    #[builder(kind = NAME_3, force_result)]
+    #[builder(kind = NAME_3, error(force))]
     struct NAME_0 {
         required: u32,
         #[builder(default)]

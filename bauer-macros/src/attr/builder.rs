@@ -4,19 +4,17 @@ use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 use strum::{AsRefStr, IntoStaticStr, VariantArray};
 use syn::{
-    Ident, ItemConst, LitStr, Token, Visibility, braced,
+    Ident, ItemConst, LitStr, Token, Visibility,
     ext::IdentExt,
-    parenthesized,
     parse::{Parse, ParseStream},
     parse_quote,
-    token::{Brace, Paren},
 };
 
 use crate::{
-    attr::build_fn::BuildFnAttr,
+    attr::{build_fn::BuildFnAttr, error::ErrorAttr},
     util::{
         OptionalToken,
-        parse::{parse_attributes, parse_docs},
+        parse::{parethesised_or_braced, parse_attributes, parse_docs},
     },
 };
 
@@ -74,9 +72,9 @@ enum Attribute {
     Const,
     #[allow(clippy::enum_variant_names)]
     Attributes,
-    BuildFn,
     Doc,
-    ForceResult,
+    BuildFn,
+    Error,
 }
 
 impl Attribute {
@@ -123,7 +121,7 @@ pub struct BuilderAttr {
     pub konst: bool,
     pub attributes: Vec<syn::Attribute>,
     pub build_fn: BuildFnAttr,
-    pub force_result: bool,
+    pub error: ErrorAttr,
 }
 
 impl BuilderAttr {
@@ -137,7 +135,7 @@ impl BuilderAttr {
             konst: false,
             attributes: Default::default(),
             build_fn: Default::default(),
-            force_result: false,
+            error: Default::default(),
         }
     }
 
@@ -190,6 +188,8 @@ impl BuilderAttr {
         let mut suffix_set = false;
         let mut vis_set = false;
         let mut crate_set = false;
+        let mut build_fn_set = false;
+        let mut error_set = false;
 
         while input.peek(Ident::peek_any) {
             let ident = Ident::parse_any(input)?;
@@ -247,57 +247,38 @@ impl BuilderAttr {
                     out.konst = true;
                 }
                 Attribute::Attributes => {
-                    let attrs;
-
-                    let la = input.lookahead1();
-                    if la.peek(Paren) {
-                        parenthesized!(attrs in input);
-                    } else if la.peek(Brace) {
-                        braced!(attrs in input);
-                    } else {
-                        return Err(la.error());
-                    }
+                    let attrs = parethesised_or_braced(input)?;
 
                     if !attrs.is_empty() {
                         parse_attributes(&attrs, &mut out.attributes)?;
                     }
                 }
-                Attribute::BuildFn => {
-                    let build_fn;
-
-                    let la = input.lookahead1();
-                    if la.peek(Paren) {
-                        parenthesized!(build_fn in input);
-                    } else if la.peek(Brace) {
-                        braced!(build_fn in input);
-                    } else {
-                        return Err(la.error());
-                    }
-
-                    out.build_fn = BuildFnAttr::parse(&build_fn)?;
-                }
                 Attribute::Doc => {
-                    let attrs;
-
-                    let la = input.lookahead1();
-                    if la.peek(Paren) {
-                        parenthesized!(attrs in input);
-                    } else if la.peek(Brace) {
-                        braced!(attrs in input);
-                    } else {
-                        return Err(la.error());
-                    }
+                    let attrs = parethesised_or_braced(input)?;
 
                     if !attrs.is_empty() {
                         parse_docs(&attrs, ident.span(), &mut out.attributes)?;
                     }
                 }
-                Attribute::ForceResult => {
-                    if out.force_result {
-                        bail!(ident.span() => "`force_result` may only be used once");
+                Attribute::BuildFn => {
+                    if build_fn_set {
+                        bail!(ident.span() => "`build_fn` may only be used once");
                     }
 
-                    out.force_result = true;
+                    let build_fn = parethesised_or_braced(input)?;
+                    out.build_fn = BuildFnAttr::parse(&build_fn)?;
+
+                    build_fn_set = true;
+                }
+                Attribute::Error => {
+                    if error_set {
+                        bail!(ident.span() => "`build_fn` may only be used once");
+                    }
+
+                    let error = parethesised_or_braced(input)?;
+                    out.error = ErrorAttr::parse(&error)?;
+
+                    error_set = true;
                 }
             }
 

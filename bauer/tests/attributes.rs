@@ -1,6 +1,6 @@
 #[rustfmt::skip] // rustfmt really does not like this style of attributes in macro
 macro_rules! tests {
-    ($kind: literal in mod $module: ident $($unwrap: ident)?) => {
+    ($kind: literal in mod $module: ident $(unwrap:$unwrap: ident)? $(error:$error: ident)?) => {
         pub mod $module {
             macro_rules! test {
                 () => {
@@ -13,6 +13,14 @@ macro_rules! tests {
                     fn build_attribute_set() {
                         assert!(StructBuilder::BUILD_ATTRIBUTE_SET);
                     }
+
+                    $(
+                        #[test]
+                        fn error_attribute_set() {
+                            let _ = stringify!($error); // just to get the repeat working
+                            assert!(ERROR_ATTRIBUTE_SET);
+                        }
+                    )?
 
                     #[test]
                     fn field_attribute_set() {
@@ -45,6 +53,13 @@ macro_rules! tests {
                             )]
                         )
                     ),
+                    $($error(
+                        attributes(
+                            #[attribute::pre(
+                                const ERROR_ATTRIBUTE_SET: bool = true;
+                            )]
+                        )
+                    ),)?
                 )]
                 pub struct Struct {
                     #[builder(
@@ -78,6 +93,13 @@ macro_rules! tests {
                             )]
                         }
                     },
+                    $($error {
+                        attributes {
+                            #[attribute::pre(
+                                const ERROR_ATTRIBUTE_SET: bool = true;
+                            )]
+                        }
+                    },)?
                 )]
                 pub struct Struct {
                     #[builder(
@@ -97,6 +119,6 @@ macro_rules! tests {
     };
 }
 
-tests!("borrowed" in mod borrowed unwrap);
-tests!("owned" in mod owned unwrap);
+tests!("borrowed" in mod borrowed unwrap:unwrap error:error);
+tests!("owned" in mod owned unwrap:unwrap error:error);
 tests!("type-state" in mod type_state);

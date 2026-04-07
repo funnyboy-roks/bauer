@@ -181,7 +181,7 @@ fn build_fn(
 
     let build_fn_attributes = &builder_attr.build_fn.attributes;
     let build_fn_name = &builder_attr.build_fn.name;
-    let (build_return, build_return_value, from) = if builder_attr.force_result {
+    let (build_return, build_return_value, from) = if builder_attr.error.force {
         (
             quote! { ::core::result::Result<#ident #default_ty_generics, ::core::convert::Infallible> },
             quote! { Ok(val) },

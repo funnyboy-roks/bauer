@@ -8,6 +8,9 @@ macro_rules! do_thing {
                 doc $($inner)*,
                 build_fn {
                     doc $($inner)*
+                },
+                error {
+                    doc $($inner)*
                 }
             )]
             pub struct Struct {
@@ -19,7 +22,11 @@ macro_rules! do_thing {
                 field: u8,
             }
 
-            test!();
+            #[test]
+            fn build() {
+                let x = Struct::builder().field(0).build().unwrap();
+                assert_eq!(x.field, 0);
+            }
         }
     }
 }
@@ -28,16 +35,6 @@ macro_rules! do_thing {
 macro_rules! tests {
     ($kind: literal in mod $module: ident $($unwrap: ident)?) => {
         pub mod $module {
-            macro_rules! test {
-                () => {
-                    #[test]
-                    fn build() {
-                        let x = Struct::builder().field(0).build().unwrap();
-                        assert_eq!(x.field, 0);
-                    }
-                }
-            }
-
             do_thing!(paren_comment => (
                 /// Some documentation
                 /// with multiple lines

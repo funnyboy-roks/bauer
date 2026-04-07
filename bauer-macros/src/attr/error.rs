@@ -20,6 +20,7 @@ enum Attribute {
     Attributes,
     Doc,
     Rename,
+    Force,
 }
 
 impl Attribute {
@@ -57,26 +58,24 @@ impl Attribute {
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct BuildFnAttr {
+#[derive(Debug, Clone, Default)]
+pub struct ErrorAttr {
     pub attributes: Vec<syn::Attribute>,
-    pub name: Ident,
+    pub rename: Option<Ident>,
+    pub force: bool,
 }
 
-impl Default for BuildFnAttr {
-    fn default() -> Self {
-        Self {
-            attributes: Default::default(),
-            name: format_ident!("build"),
+impl ErrorAttr {
+    pub fn name(&self, struct_name: &Ident) -> Ident {
+        if let Some(rename) = &self.rename {
+            rename.clone()
+        } else {
+            format_ident!("{}BuildError", struct_name)
         }
     }
-}
 
-impl BuildFnAttr {
     pub fn parse(input: ParseStream) -> syn::Result<Self> {
         let mut out = Self::default();
-
-        let mut rename_set = false;
 
         while input.peek(Ident::peek_any) {
             let ident = Ident::parse_any(input)?;
@@ -96,15 +95,21 @@ impl BuildFnAttr {
                     }
                 }
                 Attribute::Rename => {
-                    if rename_set {
+                    if out.rename.is_some() {
                         bail!(ident.span() => "`rename` may only be used once");
                     }
 
                     let _: Token![=] = input.parse()?;
                     let s: LitStr = input.parse()?;
 
-                    rename_set = true;
-                    out.name = s.parse()?;
+                    out.rename = Some(s.parse()?);
+                }
+                Attribute::Force => {
+                    if out.force {
+                        bail!(ident.span() => "`force` may only be used once");
+                    }
+
+                    out.force = true;
                 }
             }
 

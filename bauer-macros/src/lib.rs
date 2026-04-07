@@ -4,8 +4,7 @@ use proc_macro::TokenStream;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{ToTokens, format_ident, quote, quote_spanned};
 use syn::{
-    DeriveInput, Pat, TypePath, parse::ParseStream, parse_macro_input, parse_quote,
-    parse_quote_spanned, spanned::Spanned,
+    DeriveInput, Pat, parse::ParseStream, parse_macro_input, parse_quote_spanned, spanned::Spanned,
 };
 
 use crate::{
@@ -52,7 +51,7 @@ pub fn builder(input: TokenStream) -> TokenStream {
     let builder_vis = &builder_attr.vis;
 
     let builder = format_ident!("{}Builder", ident);
-    let build_err = format_ident!("{}BuildError", ident);
+    let build_err = builder_attr.error.name(ident);
     let inner = format_ident!("__unsafe_builder_content");
 
     let mut tuple_index = 0;
@@ -264,19 +263,13 @@ pub fn builder(input: TokenStream) -> TokenStream {
 
     let konst = builder_attr.konst_kw();
 
-    let build_err: TypePath = if build_err_variants.is_empty() && builder_attr.force_result {
-        parse_quote! { ::core::convert::Infallible }
+    let (ret_ty, ret_val) = if build_err_variants.is_empty() && !builder_attr.error.force {
+        (quote! { #ident #ty_generics }, quote! { ret })
     } else {
-        parse_quote! { #build_err }
-    };
-
-    let (ret_ty, ret_val) = if !build_err_variants.is_empty() || builder_attr.force_result {
         (
             quote! { ::core::result::Result<#ident #ty_generics, #build_err> },
             quote! { Ok(ret) },
         )
-    } else {
-        (quote! { #ident #ty_generics }, quote! { ret })
     };
 
     let build_fn_attributes = &builder_attr.build_fn.attributes;
@@ -297,10 +290,12 @@ pub fn builder(input: TokenStream) -> TokenStream {
         }
     };
 
-    let build_err_enum = if build_err_variants.is_empty() {
+    let build_err_enum = if build_err_variants.is_empty() && !builder_attr.error.force {
         quote! {}
     } else {
+        let attributes = &builder_attr.error.attributes;
         quote! {
+            #(#attributes)*
             #[derive(::std::fmt::Debug, ::std::cmp::PartialEq, ::std::cmp::Eq)]
             #[allow(enum_variant_names)]
             #builder_vis enum #build_err {
@@ -310,7 +305,7 @@ pub fn builder(input: TokenStream) -> TokenStream {
             impl ::core::fmt::Display for #build_err {
                 fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
                     use ::core::fmt::Write;
-                    match self {
+                    match *self {
                         #(#build_err_messages),*
                     }
                 }
@@ -320,25 +315,17 @@ pub fn builder(input: TokenStream) -> TokenStream {
         }
     };
 
-    let into_impl = if build_err_variants.is_empty() {
-        let value = if builder_attr.force_result {
-            quote! {
-                let Ok(built) = builder.#build_fn_name();
-                built
-            }
-        } else {
-            quote! { builder.#build_fn_name() }
-        };
-
+    let into_impl = if build_err_variants.is_empty() && !builder_attr.error.force {
         quote! {
             impl #impl_generics ::core::convert::From<#builder #ty_generics> for #ident #ty_generics #where_clause {
                 fn from(mut builder: #builder #ty_generics) -> Self {
-                    #value
+                    builder.#build_fn_name()
                 }
             }
         }
     } else {
         quote! {
+            #[allow(clippy::infallible_try_from)]
             impl #impl_generics ::core::convert::TryFrom<#builder #ty_generics> for #ident #ty_generics #where_clause {
                 type Error = #build_err;
 

@@ -355,7 +355,6 @@
 /// }
 /// ```
 ///
-///
 /// ## **`build_fn`**
 ///
 /// Specify details surrounding the generated `.build()` function on the builder.  There are a few
@@ -364,7 +363,7 @@
 /// - `attributes` - Specify attributes to be applied to the build function (see
 ///   [`attributes`](#attributes))
 /// - `doc` - Add documentation to the generated build function (see [`doc`](#doc))
-/// - `rename` - Rename the build function from the default of `build`
+/// - `rename = <name>` - Rename the build function from the default of `build`
 ///
 /// The contents may be wrapped with either `()` or `{}` and attributes may optionally be separated
 /// using commas.
@@ -395,23 +394,45 @@
 /// # Ok::<_, Box<dyn std::error::Error>>(())
 /// ```
 ///
-/// ## **`force_result`**
+/// ## **`error`**
 ///
-/// Force the `.build()` function to return a result.
+/// Specify details surrounding the generated error type for the builder.  There are a few
+/// attributes that may be specified here:
+///
+/// - `attributes` - Specify attributes to be applied to error enum (see
+///   [`attributes`](#attributes))
+/// - `doc` - Add documentation to the generated error enum (see [`doc`](#doc))
+/// - `rename = <name>` - Rename the error enum from the default `{struct}BuildError`
+/// - `force` - Force the builder to return an error.  This is the error enum for Owned and
+///   Borrowed builders, and [`Infallible`] on Type-State.
+///
+/// The contents may be wrapped with either `()` or `{}` and attributes may optionally be separated
+/// using commas.
 ///
 /// ```
 /// # use bauer_macros::Builder;
 /// # use attribute::{my_attribute, my_attribute2};
 /// #[derive(Builder)]
-/// #[builder(force_result)]
+/// #[builder(
+///     error {
+///         attributes {
+///             #[my_attribute]
+///             #[my_attribute2]
+///         },
+///         doc {
+///             /// Some documentation about the build function
+///         },
+///         rename = "FooBuildFailure",
+///     },
+/// )]
 /// pub struct Foo {
-///     #[builder(default)]
 ///     field: u32,
 /// }
 ///
-/// Foo::builder()
-///     .build()
-///     .unwrap(); // This unwrap will never fail
+/// let result: Result<Foo, FooBuildFailure> = Foo::builder()
+///     .field(3)
+///     .build();
+/// # let _ = result;
 /// ```
 ///
 /// # Fields Attributes
