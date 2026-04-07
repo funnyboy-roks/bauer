@@ -1,5 +1,7 @@
 #!/bin/sh
 
+set -xe
+
 cargo rdme -w bauer
 
 # fix the attribute links
