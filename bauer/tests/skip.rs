@@ -34,6 +34,34 @@ macro_rules! tests {
 
                         assert_eq!(f.field_a, 42);
                     }
+
+                    #[derive(Debug, Builder, PartialEq)]
+                    #[builder(kind = $kind)]
+                    struct SkipOption {
+                        #[builder(skip)]
+                        field_a: Option<u32>,
+                    }
+
+                    #[test]
+                    fn default_option() {
+                        let f: SkipOption = SkipOption::builder().build();
+
+                        assert_eq!(f.field_a, None);
+                    }
+
+                    #[derive(Debug, Builder, PartialEq)]
+                    #[builder(kind = $kind)]
+                    struct SkipOptionValue {
+                        #[builder(skip = Some(42))]
+                        field_a: Option<u32>,
+                    }
+
+                    #[test]
+                    fn value_option() {
+                        let f: SkipOptionValue = SkipOptionValue::builder().build();
+
+                        assert_eq!(f.field_a, Some(42));
+                    }
                 }
 
                 mod multi {

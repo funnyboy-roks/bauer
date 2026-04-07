@@ -1,0 +1,263 @@
+error: `skip` may not be used with any other attributes
+  --> tests/ui/skip-conficts.fail.rs:8:23
+   |
+ 8 |             #[builder(skip, $($tt)*)]
+   |                       ^^^^
+...
+24 | define!(BeforeDefault,    AfterDefault    as (       u32) => default                       );
+   | -------------------------------------------------------------------------------------------- in this macro invocation
+   |
+   = note: this error originates in the macro `define` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: `skip` may not be used with any other attributes
+  --> tests/ui/skip-conficts.fail.rs:14:32
+   |
+14 |             #[builder($($tt)*, skip)]
+   |                                ^^^^
+...
+24 | define!(BeforeDefault,    AfterDefault    as (       u32) => default                       );
+   | -------------------------------------------------------------------------------------------- in this macro invocation
+   |
+   = note: this error originates in the macro `define` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: `skip` may not be used with any other attributes
+  --> tests/ui/skip-conficts.fail.rs:8:23
+   |
+ 8 |             #[builder(skip, $($tt)*)]
+   |                       ^^^^
+...
+25 | define!(BeforeRepeat,     AfterRepeat     as (  Vec<u32>) => repeat                        );
+   | -------------------------------------------------------------------------------------------- in this macro invocation
+   |
+   = note: this error originates in the macro `define` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: `skip` may not be used with any other attributes
+  --> tests/ui/skip-conficts.fail.rs:14:32
+   |
+14 |             #[builder($($tt)*, skip)]
+   |                                ^^^^
+...
+25 | define!(BeforeRepeat,     AfterRepeat     as (  Vec<u32>) => repeat                        );
+   | -------------------------------------------------------------------------------------------- in this macro invocation
+   |
+   = note: this error originates in the macro `define` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: `skip` may not be used with any other attributes
+  --> tests/ui/skip-conficts.fail.rs:8:23
+   |
+ 8 |             #[builder(skip, $($tt)*)]
+   |                       ^^^^
+...
+26 | define!(BeforeRepeatN,    AfterRepeatN    as (  Vec<u32>) => repeat, repeat_n = 2          );
+   | -------------------------------------------------------------------------------------------- in this macro invocation
+   |
+   = note: this error originates in the macro `define` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: `skip` may not be used with any other attributes
+  --> tests/ui/skip-conficts.fail.rs:14:32
+   |
+14 |             #[builder($($tt)*, skip)]
+   |                                ^^^^
+...
+26 | define!(BeforeRepeatN,    AfterRepeatN    as (  Vec<u32>) => repeat, repeat_n = 2          );
+   | -------------------------------------------------------------------------------------------- in this macro invocation
+   |
+   = note: this error originates in the macro `define` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: `skip` may not be used with any other attributes
+  --> tests/ui/skip-conficts.fail.rs:8:23
+   |
+ 8 |             #[builder(skip, $($tt)*)]
+   |                       ^^^^
+...
+27 | define!(BeforeCollector,  AfterCollector  as (       u32) => repeat = u32, collector = foo );
+   | -------------------------------------------------------------------------------------------- in this macro invocation
+   |
+   = note: this error originates in the macro `define` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: `skip` may not be used with any other attributes
+  --> tests/ui/skip-conficts.fail.rs:14:32
+   |
+14 |             #[builder($($tt)*, skip)]
+   |                                ^^^^
+...
+27 | define!(BeforeCollector,  AfterCollector  as (       u32) => repeat = u32, collector = foo );
+   | -------------------------------------------------------------------------------------------- in this macro invocation
+   |
+   = note: this error originates in the macro `define` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: `skip` may not be used with any other attributes
+  --> tests/ui/skip-conficts.fail.rs:8:23
+   |
+ 8 |             #[builder(skip, $($tt)*)]
+   |                       ^^^^
+...
+28 | define!(BeforeInto,       AfterInto       as (       u32) => into                          );
+   | -------------------------------------------------------------------------------------------- in this macro invocation
+   |
+   = note: this error originates in the macro `define` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: `skip` may not be used with any other attributes
+  --> tests/ui/skip-conficts.fail.rs:14:32
+   |
+14 |             #[builder($($tt)*, skip)]
+   |                                ^^^^
+...
+28 | define!(BeforeInto,       AfterInto       as (       u32) => into                          );
+   | -------------------------------------------------------------------------------------------- in this macro invocation
+   |
+   = note: this error originates in the macro `define` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: `skip` may not be used with any other attributes
+  --> tests/ui/skip-conficts.fail.rs:8:23
+   |
+ 8 |             #[builder(skip, $($tt)*)]
+   |                       ^^^^
+...
+29 | define!(BeforeTuple,      AfterTuple      as ((u32, u32)) => tuple                         );
+   | -------------------------------------------------------------------------------------------- in this macro invocation
+   |
+   = note: this error originates in the macro `define` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: `skip` may not be used with any other attributes
+  --> tests/ui/skip-conficts.fail.rs:14:32
+   |
+14 |             #[builder($($tt)*, skip)]
+   |                                ^^^^
+...
+29 | define!(BeforeTuple,      AfterTuple      as ((u32, u32)) => tuple                         );
+   | -------------------------------------------------------------------------------------------- in this macro invocation
+   |
+   = note: this error originates in the macro `define` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: `skip` may not be used with any other attributes
+  --> tests/ui/skip-conficts.fail.rs:8:23
+   |
+ 8 |             #[builder(skip, $($tt)*)]
+   |                       ^^^^
+...
+30 | define!(BeforeAdapter,    AfterAdapter    as (       u32) => adapter = |n:u32| n + 2       );
+   | -------------------------------------------------------------------------------------------- in this macro invocation
+   |
+   = note: this error originates in the macro `define` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: `skip` may not be used with any other attributes
+  --> tests/ui/skip-conficts.fail.rs:14:32
+   |
+14 |             #[builder($($tt)*, skip)]
+   |                                ^^^^
+...
+30 | define!(BeforeAdapter,    AfterAdapter    as (       u32) => adapter = |n:u32| n + 2       );
+   | -------------------------------------------------------------------------------------------- in this macro invocation
+   |
+   = note: this error originates in the macro `define` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: `skip` may not be used with any other attributes
+  --> tests/ui/skip-conficts.fail.rs:8:23
+   |
+ 8 |             #[builder(skip, $($tt)*)]
+   |                       ^^^^
+...
+31 | define!(BeforeRename,     AfterRename     as (       u32) => rename = "renamed"            );
+   | -------------------------------------------------------------------------------------------- in this macro invocation
+   |
+   = note: this error originates in the macro `define` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: `skip` may not be used with any other attributes
+  --> tests/ui/skip-conficts.fail.rs:14:32
+   |
+14 |             #[builder($($tt)*, skip)]
+   |                                ^^^^
+...
+31 | define!(BeforeRename,     AfterRename     as (       u32) => rename = "renamed"            );
+   | -------------------------------------------------------------------------------------------- in this macro invocation
+   |
+   = note: this error originates in the macro `define` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: `skip` may not be used with any other attributes
+  --> tests/ui/skip-conficts.fail.rs:8:23
+   |
+ 8 |             #[builder(skip, $($tt)*)]
+   |                       ^^^^
+...
+32 | define!(BeforeSkipPrefix, AfterSkipPrefix as (       u32) => skip_prefix                   );
+   | -------------------------------------------------------------------------------------------- in this macro invocation
+   |
+   = note: this error originates in the macro `define` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: `skip` may not be used with any other attributes
+  --> tests/ui/skip-conficts.fail.rs:14:32
+   |
+14 |             #[builder($($tt)*, skip)]
+   |                                ^^^^
+...
+32 | define!(BeforeSkipPrefix, AfterSkipPrefix as (       u32) => skip_prefix                   );
+   | -------------------------------------------------------------------------------------------- in this macro invocation
+   |
+   = note: this error originates in the macro `define` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: `skip` may not be used with any other attributes
+  --> tests/ui/skip-conficts.fail.rs:8:23
+   |
+ 8 |             #[builder(skip, $($tt)*)]
+   |                       ^^^^
+...
+33 | define!(BeforeSkipSuffix, AfterSkipSuffix as (       u32) => skip_suffix                   );
+   | -------------------------------------------------------------------------------------------- in this macro invocation
+   |
+   = note: this error originates in the macro `define` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: `skip` may not be used with any other attributes
+  --> tests/ui/skip-conficts.fail.rs:14:32
+   |
+14 |             #[builder($($tt)*, skip)]
+   |                                ^^^^
+...
+33 | define!(BeforeSkipSuffix, AfterSkipSuffix as (       u32) => skip_suffix                   );
+   | -------------------------------------------------------------------------------------------- in this macro invocation
+   |
+   = note: this error originates in the macro `define` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: `skip` may not be used with any other attributes
+  --> tests/ui/skip-conficts.fail.rs:8:23
+   |
+ 8 |             #[builder(skip, $($tt)*)]
+   |                       ^^^^
+...
+34 | define!(BeforeAttributes, AfterAttributes as (       u32) => attributes()                  );
+   | -------------------------------------------------------------------------------------------- in this macro invocation
+   |
+   = note: this error originates in the macro `define` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: `skip` may not be used with any other attributes
+  --> tests/ui/skip-conficts.fail.rs:14:32
+   |
+14 |             #[builder($($tt)*, skip)]
+   |                                ^^^^
+...
+34 | define!(BeforeAttributes, AfterAttributes as (       u32) => attributes()                  );
+   | -------------------------------------------------------------------------------------------- in this macro invocation
+   |
+   = note: this error originates in the macro `define` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: `skip` may not be used with any other attributes
+  --> tests/ui/skip-conficts.fail.rs:8:23
+   |
+ 8 |             #[builder(skip, $($tt)*)]
+   |                       ^^^^
+...
+35 | define!(BeforeDoc,        AfterDoc        as (       u32) => doc()                         );
+   | -------------------------------------------------------------------------------------------- in this macro invocation
+   |
+   = note: this error originates in the macro `define` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: `skip` may not be used with any other attributes
+  --> tests/ui/skip-conficts.fail.rs:14:32
+   |
+14 |             #[builder($($tt)*, skip)]
+   |                                ^^^^
+...
+35 | define!(BeforeDoc,        AfterDoc        as (       u32) => doc()                         );
+   | -------------------------------------------------------------------------------------------- in this macro invocation
+   |
+   = note: this error originates in the macro `define` (in Nightly builds, run with -Z macro-backtrace for more info)
