@@ -22,6 +22,8 @@ pub struct Foo {
     pub field_i: Vec<u32>,
     #[builder(repeat = char)]
     pub field_j: String,
+    #[builder(skip = field_i.len() + field_j.len() + field_h.len() + 1)]
+    pub field_k: usize,
 }
 
 fn main() {
@@ -55,6 +57,7 @@ fn main() {
             field_h: vec![2, 3],
             field_i: vec![4, 5, 6],
             field_j: String::from("hi"),
+            field_k: 8,
         }
     );
 }

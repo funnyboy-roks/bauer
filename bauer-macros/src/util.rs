@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use proc_macro2::TokenTree;
+use proc_macro2::{TokenStream, TokenTree};
 use quote::{ToTokens, format_ident, quote};
 use syn::{DeriveInput, Ident};
 
@@ -110,5 +110,20 @@ pub fn known_idents(input: &DeriveInput, fields: &[BuilderField]) -> HashSet<Str
 pub fn ensure_no_conflict(ident: &mut Ident, known: &HashSet<String>) {
     while known.contains(&ident.to_string()) {
         *ident = format_ident!("_{}", *ident);
+    }
+}
+
+pub fn parallel_assign<'a>(
+    idents: impl IntoIterator<Item = &'a Ident>,
+    values: impl IntoIterator<Item = TokenStream>,
+    prefix: TokenStream,
+) -> TokenStream {
+    let idents = idents.into_iter();
+    let values = values.into_iter();
+    quote! {
+        let (#(#idents),*) = {
+            #prefix
+            (#(#values),*)
+        };
     }
 }

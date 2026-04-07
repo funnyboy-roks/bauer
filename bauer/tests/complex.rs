@@ -17,6 +17,7 @@ macro_rules! tests {
             #[builder(kind = $kind)]
             struct Complex {
                 required: u32,
+                optional: Option<u32>,
                 #[builder(default)]
                 default: u32,
                 #[builder(default = "42")]
@@ -77,6 +78,7 @@ macro_rules! tests {
                     $(.$unwrap())?;
 
                 assert_eq!(c.required, 69);
+                assert_eq!(c.optional, None);
                 assert_eq!(c.default, 0);
                 assert_eq!(c.default_value, 42);
                 assert_eq!(c.repeat, []);
@@ -101,6 +103,7 @@ macro_rules! tests {
             fn full() {
                 let c: Complex = Complex::builder()
                     .required(69)
+                    .optional(8675309)
                     .default(42)
                     .default_value(1337)
                     .repeat(1)
@@ -141,6 +144,7 @@ macro_rules! tests {
                     $(.$unwrap())?;
 
                 assert_eq!(c.required, 69);
+                assert_eq!(c.optional, Some(8675309));
                 assert_eq!(c.default, 42);
                 assert_eq!(c.default_value, 1337);
                 assert_eq!(c.repeat, [1, 2]);

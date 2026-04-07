@@ -11,7 +11,7 @@ use crate::{
     BuilderAttr, BuilderField, Len, Repeat,
     field::FieldIdents,
     type_state::generics::{CustomImplGenerics, CustomTypeGenerics},
-    util::{ReplaceTrait, ensure_no_conflict, known_idents},
+    util::{ReplaceTrait, ensure_no_conflict, known_idents, parallel_assign},
 };
 
 mod generics;
@@ -29,12 +29,15 @@ fn build_fn(
     let builder_vis = &builder_attr.vis;
     let private_module = builder_attr.private_module();
 
-    let build_fields = fields.iter().map(|field| {
+    let names = fields.iter().map(|f| &f.ident);
+
+    let not_skipped_field_values = fields.iter().filter(|f| !f.should_skip()).map(|field| {
         let name = &field.ident;
+        let wrapped_ty = field.wrapped_type();
         let pascal = &field.idents.pascal;
         let field_i = field.tuple_index();
 
-        if let Some(Repeat {
+        let value = if let Some(Repeat {
             inner_ty,
             len: Len::Int { .. },
             array,
@@ -53,7 +56,7 @@ fn build_fn(
 
             quote_spanned! {
                 inner_ty.span() =>
-                #name: {
+                {
                     // SAFETY: The build function can only be called once the array has been
                     // filled and is fully initialised.
                     let array = unsafe { inner.#field_i.assume_init() };
@@ -69,24 +72,18 @@ fn build_fn(
         {
             assert!(!builder_attr.konst);
             assert!(!*array);
-            let collect = collector.collect(parse_quote_spanned! { inner_ty.span()=> {
+            collector.collect(parse_quote_spanned! { inner_ty.span()=> {
                 let _: &::std::vec::Vec<_> = &inner.#field_i; // assert that the types are correct
                 inner.#field_i.into_iter()
-            }});
-
-            quote_spanned! { inner_ty.span()=>
-                #name: #collect
-            }
+            }})
         } else if field.wrapped_option {
-            quote! {
-                #name: inner.#field_i
-            }
+            quote! { inner.#field_i }
         } else if let Some(default) = &field.attr.default {
             let default = default.to_value(field.attr.into);
 
             quote_spanned! {field.ty.span()=>
                 // TODO: make this a function once const traits are stable
-                #name: if <#pascal as #private_module::state::BuilderState>::SET {
+                if <#pascal as #private_module::state::BuilderState>::SET {
                     // SAFETY: If #pascal::SET is true, then we have already set #field_i
                     unsafe { inner.#field_i.assume_init() }
                 } else {
@@ -97,10 +94,38 @@ fn build_fn(
             quote! {
                 // SAFETY: This function is only accessible if all required fields are set.  This
                 // is enusred by the type bounds.
-                #name: unsafe { inner.#field_i.assume_init() }
+                unsafe { inner.#field_i.assume_init() }
             }
-        }
+        };
+
+        quote! {{
+            let #name: #wrapped_ty = #value;
+            #name
+        }}
     });
+
+    let not_skipped_fields: Vec<_> = fields
+        .iter()
+        .filter(|f| !f.should_skip())
+        .map(|f| &f.ident)
+        .collect();
+
+    let set_not_skipped_fields = parallel_assign(
+        not_skipped_fields.iter().copied(),
+        not_skipped_field_values,
+        quote! {
+            let inner = self.#inner;
+        },
+    );
+
+    let set_skipped_fields = parallel_assign(
+        fields.iter().filter(|f| f.should_skip()).map(|f| &f.ident),
+        fields.iter().filter_map(BuilderField::skipped_field_value),
+        quote! {
+            #[allow(unused)]
+            let (#(#not_skipped_fields),*) = (#(&#not_skipped_fields),*);
+        },
+    );
 
     let build_impl_generics = generic_fields.iter().enumerate().filter_map(|(i, f)| {
         let pascal = &f.idents.pascal;
@@ -177,13 +202,14 @@ fn build_fn(
             #(#build_fn_attributes)*
             #builder_vis #konst fn build(self) -> #build_return {
                 #[allow(deprecated)] // #inner is set to deprecated
-                {
-                    let inner = self.#inner;
-                    let val = #ident {
-                        #(#build_fields),*
-                    };
-                    #build_return_value
-                }
+                let val = {
+                    #set_not_skipped_fields
+                    #set_skipped_fields
+                    #ident {
+                        #(#names),*
+                    }
+                };
+                #build_return_value
             }
         }
 
@@ -213,7 +239,7 @@ pub fn type_state_builder(
 
     let generic_fields: Vec<_> = fields
         .iter()
-        .filter(|f| f.attr.repeat.as_ref().is_none_or(|r| r.len.is_some()))
+        .filter(|f| !f.should_skip() && f.attr.repeat.as_ref().is_none_or(|r| r.len.is_some()))
         .collect();
 
     let mut out = TokenStream::new();
@@ -268,7 +294,7 @@ pub fn type_state_builder(
     let (default_impl_generics, default_ty_generics, where_clause) =
         input.generics.split_for_impl();
 
-    let field_decls = fields.iter().map(|f| {
+    let field_decls = fields.iter().filter(|f| !f.should_skip()).map(|f| {
         let ty = &f.ty;
         if let Some(Repeat {
             inner_ty,
@@ -286,7 +312,7 @@ pub fn type_state_builder(
         }
     });
 
-    let init = fields.iter().map(|f| {
+    let init = fields.iter().filter(|f| !f.should_skip()).map(|f| {
         if let Some(Repeat {
             len: Len::Int { .. },
             ..
@@ -370,6 +396,10 @@ pub fn type_state_builder(
 
     let mut i = 0;
     for f in &fields {
+        if f.should_skip() {
+            continue; // skip
+        }
+
         let (args, value) = f.attr.to_args_and_value(f.arg_ty(), &f.ident);
         let fn_ident = f.function_ident(builder_attr);
 

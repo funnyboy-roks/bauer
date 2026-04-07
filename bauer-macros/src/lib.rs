@@ -11,6 +11,7 @@ use syn::{
 use crate::{
     builder::{BuilderAttr, Kind},
     field::{BuilderField, Len, Repeat},
+    util::parallel_assign,
 };
 
 mod builder;
@@ -55,7 +56,7 @@ pub fn builder(input: TokenStream) -> TokenStream {
     let build_err = format_ident!("{}BuildError", ident);
     let inner = format_ident!("__unsafe_builder_content");
 
-    let fields_named: Vec<_> = match data_struct.fields {
+    let fields: Vec<_> = match data_struct.fields {
         syn::Fields::Named(ref fields_named) => match fields_named
             .named
             .iter()
@@ -81,11 +82,12 @@ pub fn builder(input: TokenStream) -> TokenStream {
     let private_module = attr.private_module();
 
     if attr.kind == Kind::TypeState {
-        return type_state::type_state_builder(&attr, &input, fields_named).into();
+        return type_state::type_state_builder(&attr, &input, fields).into();
     }
 
-    let (fields, init): (Vec<_>, Vec<_>) = fields_named
+    let (field_types, init): (Vec<_>, Vec<_>) = fields
         .iter()
+        .filter(|f| !f.should_skip())
         .map(|f| {
             if let Some(Repeat {
                 inner_ty,
@@ -118,13 +120,15 @@ pub fn builder(input: TokenStream) -> TokenStream {
         })
         .collect();
 
-    let functions: TokenStream2 = fields_named
+    let functions: TokenStream2 = fields
         .iter()
+        .filter(|f| !f.should_skip())
         .map(|f| f.function(&attr, &inner))
         .collect();
 
-    let (build_err_variants, build_err_messages): (Vec<_>, Vec<_>) = fields_named
+    let (build_err_variants, build_err_messages): (Vec<_>, Vec<_>) = fields
         .iter()
+        .filter(|f| !f.should_skip())
         .flat_map(|f| {
             let mut variants = Vec::new();
             if let Some(err) = &f.missing_err {
@@ -156,15 +160,16 @@ pub fn builder(input: TokenStream) -> TokenStream {
         })
         .collect();
 
-    let build_fields = fields_named.iter().map(|field| {
+    let not_skipped_field_values = fields.iter().filter(|f| !f.should_skip()).map(|field| {
         let name = &field.ident;
+        let wrapped_ty = &field.wrapped_type();
         let field_i = field.tuple_index();
 
-        if let Some(rep @ Repeat { inner_ty, collector, .. }) = &field.attr.repeat {
+        let value = if let Some(rep @ Repeat { inner_ty, collector, .. }) = &field.attr.repeat {
             if let Len::Raw { pattern, error } = &rep.len {
                 let value = if rep.array {
                     quote_spanned! { inner_ty.span()=> {
-                        let arr = ::core::mem::replace(&mut self.#inner.#field_i, #private_module::PushableArray::new());
+                        let arr = ::core::mem::replace(&mut inner.#field_i, #private_module::PushableArray::new());
                         arr.into_array()
                             .expect("The match ensures the length of this array is correct")
                     }}
@@ -173,46 +178,40 @@ pub fn builder(input: TokenStream) -> TokenStream {
                     assert!(!attr.konst);
 
                     collector.collect(parse_quote_spanned! {inner_ty.span()=>
-                        self.#inner.#field_i.drain(..)
+                        inner.#field_i.drain(..)
                     })
                 };
 
                 if let Pat::Ident(_) = pattern {
-                quote_spanned! { pattern.span()=>
-                    #name: if self.#inner.#field_i.len() == #pattern {
-                        #value
-                    } else {
-                        return Err(#build_err::#error(self.#inner.#field_i.len()));
+                    quote_spanned! { pattern.span()=>
+                        if inner.#field_i.len() == #pattern {
+                            #value
+                        } else {
+                            return Err(#build_err::#error(self.#inner.#field_i.len()));
+                        }
                     }
-                }
                 } else {
-                quote_spanned! { pattern.span()=>
-                    #name: match self.#inner.#field_i.len() {
-                        #pattern => #value,
-                        len => return Err(#build_err::#error(len)),
+                    quote_spanned! { pattern.span()=>
+                        match inner.#field_i.len() {
+                            #pattern => #value,
+                            len => return Err(#build_err::#error(len)),
+                        }
                     }
-                }
                 }
             } else {
                 assert!(!rep.array);
                 assert!(!attr.konst);
-                let value = collector.collect(parse_quote_spanned! {inner_ty.span()=>
-                    self.#inner.#field_i.drain(..)
-                });
-
-                quote_spanned! { inner_ty.span()=>
-                    #name: #value
-                }
+                collector.collect(parse_quote_spanned! {inner_ty.span()=>
+                    inner.#field_i.drain(..)
+                })
             }
         } else if field.wrapped_option {
-            quote! {
-                #name: self.#inner.#field_i.take()
-            }
+            quote! { inner.#field_i.take() }
         } else if let Some(default) = &field.attr.default {
             let default = default.to_value(field.attr.into);
             quote! {
                 // NOTE: not using Option::unwrap_or_else, since it's not stable in const
-                #name: match self.#inner.#field_i.take() {
+                match inner.#field_i.take() {
                     Some(v) => v,
                     None => #default
                 }
@@ -224,13 +223,43 @@ pub fn builder(input: TokenStream) -> TokenStream {
                 .expect("missing_err is set when default is none");
             quote! {
                 // NOTE: not using Option::ok_or, since it's not stable in const
-                #name: match self.#inner.#field_i.take() {
+                match inner.#field_i.take() {
                     Some(v) => v,
                     None => return Err(#build_err::#err),
                 }
             }
-        }
+        };
+
+        quote! {{
+            let #name: #wrapped_ty = #value;
+            #name
+        }}
     });
+
+    let not_skipped_fields: Vec<_> = fields
+        .iter()
+        .filter(|f| !f.should_skip())
+        .map(|f| &f.ident)
+        .collect();
+
+    let set_not_skipped_fields = parallel_assign(
+        not_skipped_fields.iter().copied(),
+        not_skipped_field_values,
+        quote! {
+            let inner = &mut self.#inner;
+        },
+    );
+
+    let set_skipped_fields = parallel_assign(
+        fields.iter().filter(|f| f.should_skip()).map(|f| &f.ident),
+        fields.iter().filter_map(BuilderField::skipped_field_value),
+        quote! {
+            #[allow(unused)]
+            let (#(#not_skipped_fields),*) = (#(&#not_skipped_fields),*);
+        },
+    );
+
+    let finish_fields = fields.iter().map(|field| &field.ident);
 
     let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
 
@@ -243,29 +272,28 @@ pub fn builder(input: TokenStream) -> TokenStream {
         parse_quote! { #build_err }
     };
 
-    let build_fn = if !build_err_variants.is_empty() || attr.force_result {
-        quote! {
-            #(#builder_fn_attributes)*
-            #builder_vis #konst fn build(#self_param) -> ::core::result::Result<#ident #ty_generics, #build_err> {
-                #[allow(deprecated)] // #inner is set to deprecated
-                {
-                    Ok(#ident {
-                        #(#build_fields),*
-                    })
-                }
-            }
-        }
+    let (ret_ty, ret_val) = if !build_err_variants.is_empty() || attr.force_result {
+        (
+            quote! { ::core::result::Result<#ident #ty_generics, #build_err> },
+            quote! { Ok(ret) },
+        )
     } else {
-        quote! {
-            #(#builder_fn_attributes)*
-            #builder_vis #konst fn build(#self_param) -> #ident #ty_generics {
-                #[allow(deprecated)] // #inner is set to deprecated
-                {
-                    #ident {
-                        #(#build_fields),*
-                    }
+        (quote! { #ident #ty_generics }, quote! { ret })
+    };
+
+    let build_fn = quote! {
+        #(#builder_fn_attributes)*
+        #builder_vis #konst fn build(#self_param) -> #ret_ty {
+            #[allow(deprecated)] // #inner is set to deprecated
+            let ret = {
+                #set_not_skipped_fields
+                #set_skipped_fields
+
+                #ident {
+                    #(#finish_fields),*
                 }
-            }
+            };
+            #ret_val
         }
     };
 
@@ -334,7 +362,7 @@ pub fn builder(input: TokenStream) -> TokenStream {
         #builder_vis struct #builder #impl_generics #where_clause {
             #[deprecated = "This field is for internal use only; You almost certainly don't need to touch this. If you encounter a bug or missing feature, file an issue on the repo."]
             #[doc(hidden)]
-            #inner: (#(#fields,)*),
+            #inner: (#(#field_types,)*),
         }
 
         impl #impl_generics #builder #ty_generics #where_clause {

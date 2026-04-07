@@ -133,6 +133,7 @@ enum Attribute {
     Attributes,
     Doc,
     Collector,
+    Skip,
 }
 
 impl Attribute {
@@ -207,6 +208,35 @@ pub struct BuilderField {
 }
 
 impl BuilderField {
+    pub fn should_skip(&self) -> bool {
+        self.attr.skip.is_set()
+    }
+
+    pub fn skipped_field_value(&self) -> Option<TokenStream> {
+        let value = match &self.attr.skip {
+            Skip::NoSkip => return None,
+            Skip::Default { ident } => quote_spanned! {ident.span()=>
+                ::core::default::Default::default()
+            },
+            Skip::Expr { ident, expr } => quote_spanned! {ident.span()=>
+                #expr
+            },
+        };
+
+        Some(quote! {{
+            #value
+        }})
+    }
+
+    pub fn wrapped_type(&self) -> Type {
+        if self.wrapped_option {
+            let ty = &self.ty;
+            parse_quote! { ::core::option::Option<#ty> }
+        } else {
+            self.ty.clone()
+        }
+    }
+
     pub fn tuple_index(&self) -> syn::Index {
         syn::Index {
             index: self.index as _,
@@ -728,7 +758,35 @@ impl Parse for Adapter {
 }
 
 #[derive(Default, Debug)]
+pub enum Skip {
+    #[default]
+    NoSkip,
+    Default {
+        ident: Ident,
+    },
+    Expr {
+        ident: Ident,
+        expr: Expr,
+    },
+}
+
+impl Skip {
+    pub fn is_set(&self) -> bool {
+        !matches!(self, Self::NoSkip)
+    }
+
+    pub fn ident(&self) -> Option<&Ident> {
+        match self {
+            Skip::NoSkip => None,
+            Skip::Default { ident } => Some(ident),
+            Skip::Expr { ident, .. } => Some(ident),
+        }
+    }
+}
+
+#[derive(Default, Debug)]
 pub struct FieldAttr {
+    pub skip: Skip,
     pub default: Option<DefaultAttr>,
     pub into: Option<Span>,
     pub repeat: Option<Repeat>,
@@ -787,6 +845,7 @@ impl FieldAttr {
         let mut out = FieldAttr::default();
         let field_ident = field.ident.as_ref().unwrap();
 
+        let mut n_attr = 0;
         while input.peek(syn::Ident) {
             let ident: Ident = input.parse()?;
             match Attribute::parse(&ident)? {
@@ -1069,12 +1128,38 @@ impl FieldAttr {
                         field_ty: field.ty.clone(),
                     };
                 }
+                Attribute::Skip => {
+                    if out.skip.is_set() {
+                        bail!(ident.span() => "`skip` may only be used once");
+                    }
+
+                    out.skip = if input.peek(Token![=]) {
+                        let _: Token![=] = input.parse()?;
+                        Skip::Expr {
+                            ident,
+                            expr: input.parse()?,
+                        }
+                    } else {
+                        Skip::Default { ident }
+                    };
+                }
             }
+            n_attr += 1;
 
             if input.peek(Token![,]) {
                 let _: Token![,] = input.parse()?;
             } else {
                 break;
+            }
+        }
+
+        // validate the structure
+        if n_attr != 1 {
+            if let Some(ident) = out.skip.ident() {
+                bail!(
+                    ident.span() =>
+                    "`skip` may not be used with any other attributes"
+                );
             }
         }
 
