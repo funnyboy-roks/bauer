@@ -1,69 +1,45 @@
 #![allow(dead_code)]
 
-// enusre that the same functionality is generated for all kinds (simple)
+macro_rules! tests {
+    ($kind: literal in mod $module: ident $($unwrap: ident)?) => {
+        mod $module {
+            use bauer::Builder;
 
-use bauer::Builder;
+            #[derive(Debug, Builder, PartialEq)]
+            #[builder(kind = $kind, prefix = "set_")]
+            struct Foo {
+                #[builder(default = "42")]
+                field_a: u32,
+                field_b: Option<char>,
+                field_c: bool,
+                #[builder(into)]
+                field_d: String,
+                #[builder(skip_prefix, rename = "add_e", repeat, repeat_n = 3..)]
+                field_e: Vec<f64>,
+            }
 
-macro_rules! define {
-    ($name: ident, $kind: literal) => {
-        #[derive(Debug, Builder, PartialEq)]
-        #[builder(kind = $kind, prefix = "set_")]
-        struct $name {
-            /// Hello
-            #[builder(default = "42")]
-            field_a: u32,
-            field_b: bool,
-            #[builder(into)]
-            field_c: String,
-            #[builder(skip_prefix, skip_suffix, rename = "add_d", repeat, repeat_n = 3..)]
-            field_d: Vec<f64>,
+            #[test]
+            fn it_works() {
+                let f: Foo = Foo::builder()
+                    .set_field_a(69)
+                    .set_field_c(true)
+                    .set_field_d("hello world")
+                    .add_e(std::f64::consts::PI)
+                    .add_e(std::f64::consts::TAU)
+                    .add_e(2.72)
+                    .build()
+                    $(.$unwrap())?;
+
+                assert_eq!(f.field_a, 69);
+                assert_eq!(f.field_b, None);
+                assert_eq!(f.field_c, true);
+                assert_eq!(f.field_d, "hello world");
+                assert_eq!(f.field_e, [std::f64::consts::PI, std::f64::consts::TAU, 2.72]);
+            }
         }
     };
 }
 
-macro_rules! populate {
-    ($name: ident) => {
-        $name::builder()
-            .set_field_a(69)
-            .set_field_b(true)
-            .set_field_c("hello world")
-            .add_d(std::f64::consts::PI)
-            .add_d(std::f64::consts::TAU)
-            .add_d(2.72)
-    };
-}
-
-macro_rules! expected {
-    ($name: ident) => {
-        $name {
-            field_a: 69,
-            field_b: true,
-            field_c: "hello world".into(),
-            field_d: vec![std::f64::consts::PI, std::f64::consts::TAU, 2.72],
-        }
-    };
-}
-
-#[test]
-fn simple_owned() {
-    define!(Foo, "owned");
-    let x = populate!(Foo).build().unwrap();
-    dbg!(&x);
-    assert_eq!(x, expected!(Foo));
-}
-
-#[test]
-fn simple_borrowed() {
-    define!(Foo, "borrowed");
-    let x = populate!(Foo).build().unwrap();
-    dbg!(&x);
-    assert_eq!(x, expected!(Foo));
-}
-
-#[test]
-fn simple_type_state() {
-    define!(Foo, "type-state");
-    let x = populate!(Foo).build();
-    dbg!(&x);
-    assert_eq!(x, expected!(Foo));
-}
+tests!("borrowed" in mod borrowed unwrap);
+tests!("owned" in mod owned unwrap);
+tests!("type-state" in mod type_state);
