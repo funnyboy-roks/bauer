@@ -14,6 +14,11 @@ macro_rules! tests {
                         assert!(StructBuilder::BUILD_ATTRIBUTE_SET);
                     }
 
+                    #[test]
+                    fn builder_attribute_set() {
+                        assert!(Struct::BUILDER_ATTRIBUTE_SET);
+                    }
+
                     $(
                         #[test]
                         fn error_attribute_set() {
@@ -50,6 +55,13 @@ macro_rules! tests {
                         attributes(
                             #[attribute::pre(
                                 const BUILD_ATTRIBUTE_SET: bool = true;
+                            )]
+                        )
+                    ),
+                    builder_fn(
+                        attributes(
+                            #[attribute::pre(
+                                const BUILDER_ATTRIBUTE_SET: bool = true;
                             )]
                         )
                     ),
@@ -90,6 +102,13 @@ macro_rules! tests {
                         attributes {
                             #[attribute::pre(
                                 const BUILD_ATTRIBUTE_SET: bool = true;
+                            )]
+                        }
+                    },
+                    builder_fn {
+                        attributes {
+                            #[attribute::pre(
+                                const BUILDER_ATTRIBUTE_SET: bool = true;
                             )]
                         }
                     },

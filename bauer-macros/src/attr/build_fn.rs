@@ -63,19 +63,24 @@ pub struct BuildFnAttr {
     pub name: Ident,
 }
 
-impl Default for BuildFnAttr {
-    fn default() -> Self {
+impl BuildFnAttr {
+    pub fn default_build() -> Self {
         Self {
             attributes: Default::default(),
             name: format_ident!("build"),
         }
     }
+
+    pub fn default_builder() -> Self {
+        Self {
+            attributes: Default::default(),
+            name: format_ident!("builder"),
+        }
+    }
 }
 
 impl BuildFnAttr {
-    pub fn parse(input: ParseStream) -> syn::Result<Self> {
-        let mut out = Self::default();
-
+    pub fn parse(&mut self, input: ParseStream) -> syn::Result<()> {
         let mut rename_set = false;
 
         while input.peek(Ident::peek_any) {
@@ -85,14 +90,14 @@ impl BuildFnAttr {
                     let attrs = parethesised_or_braced(input)?;
 
                     if !attrs.is_empty() {
-                        parse_attributes(&attrs, &mut out.attributes)?;
+                        parse_attributes(&attrs, &mut self.attributes)?;
                     }
                 }
                 Attribute::Doc => {
                     let attrs = parethesised_or_braced(input)?;
 
                     if !attrs.is_empty() {
-                        parse_docs(&attrs, ident.span(), &mut out.attributes)?;
+                        parse_docs(&attrs, ident.span(), &mut self.attributes)?;
                     }
                 }
                 Attribute::Rename => {
@@ -104,7 +109,7 @@ impl BuildFnAttr {
                     let s: LitStr = input.parse()?;
 
                     rename_set = true;
-                    out.name = s.parse()?;
+                    self.name = s.parse()?;
                 }
             }
 
@@ -115,6 +120,6 @@ impl BuildFnAttr {
             }
         }
 
-        Ok(out)
+        Ok(())
     }
 }

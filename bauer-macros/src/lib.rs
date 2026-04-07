@@ -4,7 +4,8 @@ use proc_macro::TokenStream;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{ToTokens, format_ident, quote, quote_spanned};
 use syn::{
-    DeriveInput, Pat, parse::ParseStream, parse_macro_input, parse_quote_spanned, spanned::Spanned,
+    DeriveInput, Ident, Pat, parse::ParseStream, parse_macro_input, parse_quote_spanned,
+    spanned::Spanned,
 };
 
 use crate::{
@@ -16,6 +17,25 @@ use crate::{
 mod attr;
 mod type_state;
 mod util;
+
+fn builder_fn(input: &DeriveInput, builder_attr: &BuilderAttr, builder: &Ident) -> TokenStream2 {
+    let ident = &input.ident;
+    let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
+    let konst = builder_attr.konst_kw();
+    let builder_vis = &builder_attr.vis;
+
+    let name = &builder_attr.builder_fn.name;
+    let attributes = &builder_attr.builder_fn.attributes;
+
+    quote! {
+        impl #impl_generics #ident #ty_generics #where_clause {
+            #(#attributes)*
+            #builder_vis #konst fn #name() -> #builder #ty_generics {
+                #builder::new()
+            }
+        }
+    }
+}
 
 #[proc_macro_derive(Builder, attributes(builder))]
 pub fn builder(input: TokenStream) -> TokenStream {
@@ -338,6 +358,8 @@ pub fn builder(input: TokenStream) -> TokenStream {
 
     let builder_attributes = &builder_attr.attributes;
 
+    let builder_fn = builder_fn(&input, &builder_attr, &builder);
+
     let assert_crate = builder_attr.assert_crate();
     quote! {
         #assert_crate
@@ -359,7 +381,7 @@ pub fn builder(input: TokenStream) -> TokenStream {
         }
 
         impl #impl_generics #builder #ty_generics #where_clause {
-            pub #konst fn new() -> Self {
+            #konst fn new() -> Self {
                 Self {
                     #inner: (#(#init,)*),
                 }
@@ -372,11 +394,7 @@ pub fn builder(input: TokenStream) -> TokenStream {
             }
         }
 
-        impl #impl_generics #ident #ty_generics #where_clause {
-            #builder_vis #konst fn builder() -> #builder #ty_generics {
-                #builder::new()
-            }
-        }
+        #builder_fn
 
         #into_impl
     }

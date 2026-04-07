@@ -74,6 +74,7 @@ enum Attribute {
     Attributes,
     Doc,
     BuildFn,
+    BuilderFn,
     Error,
 }
 
@@ -121,6 +122,7 @@ pub struct BuilderAttr {
     pub konst: bool,
     pub attributes: Vec<syn::Attribute>,
     pub build_fn: BuildFnAttr,
+    pub builder_fn: BuildFnAttr,
     pub error: ErrorAttr,
 }
 
@@ -134,7 +136,8 @@ impl BuilderAttr {
             krate: format_ident!("bauer"),
             konst: false,
             attributes: Default::default(),
-            build_fn: Default::default(),
+            build_fn: BuildFnAttr::default_build(),
+            builder_fn: BuildFnAttr::default_builder(),
             error: Default::default(),
         }
     }
@@ -189,6 +192,7 @@ impl BuilderAttr {
         let mut vis_set = false;
         let mut crate_set = false;
         let mut build_fn_set = false;
+        let mut builder_fn_set = false;
         let mut error_set = false;
 
         while input.peek(Ident::peek_any) {
@@ -266,9 +270,19 @@ impl BuilderAttr {
                     }
 
                     let build_fn = parethesised_or_braced(input)?;
-                    out.build_fn = BuildFnAttr::parse(&build_fn)?;
+                    out.build_fn.parse(&build_fn)?;
 
                     build_fn_set = true;
+                }
+                Attribute::BuilderFn => {
+                    if builder_fn_set {
+                        bail!(ident.span() => "`builder_fn` may only be used once");
+                    }
+
+                    let builder_fn = parethesised_or_braced(input)?;
+                    out.builder_fn.parse(&builder_fn)?;
+
+                    builder_fn_set = true;
                 }
                 Attribute::Error => {
                     if error_set {

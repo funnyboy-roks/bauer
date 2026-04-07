@@ -69,6 +69,7 @@
 //! | [`attribute`/`attributes`]                   | Set attribute(s) on the generated builder struct                                                            | `attribute(#[foo])`                          |
 //! | [`doc`/`docs`]                               | Set documentation items on the generated builder struct                                                     | `doc(<doc strings>)`                         |
 //! | [`build_fn`]                                 | Set details about the build function (`attributes`, `doc`, `rename`)                                        | `build_fn(...)`                              |
+//! | [`builder_fn`]                               | Set details about the builder function added to the struct (`attributes`, `doc`, `rename`)                  | `builder_fn(...)`                            |
 //! | [`error`]                                    | Set details about the generated error enum (`attributes`, `doc`, `rename`, `force`)                         | `error(...)`                                 |
 //!
 //! [`kind`]: Builder#kind
@@ -79,6 +80,7 @@
 //! [`attribute`/`attributes`]: Builder#attributes
 //! [`doc`/`docs`]: Builder#doc
 //! [`build_fn`]: Builder#build_fn
+//! [`builder_fn`]: Builder#builder_fn
 //! [`error`]: Builder#error
 //!
 //! ## Field Attributes
@@ -391,6 +393,45 @@
 /// let foo: Foo = Foo::builder()
 ///     .field(3)
 ///     .finish()?;
+/// # Ok::<_, Box<dyn std::error::Error>>(())
+/// ```
+///
+/// ## **`builder_fn`**
+///
+/// Specify details surrounding the generated `.builder()` function on the struct.  There are a few
+/// attributes that may be specified here:
+///
+/// - `attributes` - Specify attributes to be applied to the build function (see
+///   [`attributes`](#attributes))
+/// - `doc` - Add documentation to the generated build function (see [`doc`](#doc))
+/// - `rename = <name>` - Rename the build function from the default of `build`
+///
+/// The contents may be wrapped with either `()` or `{}` and attributes may optionally be separated
+/// using commas.
+///
+/// ```
+/// # use bauer_macros::Builder;
+/// # use attribute::{my_attribute, my_attribute2};
+/// #[derive(Builder)]
+/// #[builder(
+///     builder_fn {
+///         attributes {
+///             #[my_attribute]
+///             #[my_attribute2]
+///         },
+///         doc {
+///             /// Some documentation about the builder function
+///         },
+///         rename = "renamed_function",
+///     },
+/// )]
+/// pub struct Foo {
+///     field: u32,
+/// }
+///
+/// let foo: Foo = Foo::renamed_function()
+///     .field(3)
+///     .build()?;
 /// # Ok::<_, Box<dyn std::error::Error>>(())
 /// ```
 ///
