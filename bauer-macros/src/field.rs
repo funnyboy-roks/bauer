@@ -214,7 +214,7 @@ impl BuilderField {
 
     pub fn skipped_field_value(&self) -> Option<TokenStream> {
         let value = match &self.attr.skip {
-            Skip::NoSkip => return None,
+            Skip::None => return None,
             Skip::Default { ident } => quote_spanned! {ident.span()=>
                 ::core::default::Default::default()
             },
@@ -760,7 +760,7 @@ impl Parse for Adapter {
 #[derive(Default, Debug)]
 pub enum Skip {
     #[default]
-    NoSkip,
+    None,
     Default {
         ident: Ident,
     },
@@ -772,12 +772,12 @@ pub enum Skip {
 
 impl Skip {
     pub fn is_set(&self) -> bool {
-        !matches!(self, Self::NoSkip)
+        !matches!(self, Self::None)
     }
 
     pub fn ident(&self) -> Option<&Ident> {
         match self {
-            Skip::NoSkip => None,
+            Skip::None => None,
             Skip::Default { ident } => Some(ident),
             Skip::Expr { ident, .. } => Some(ident),
         }

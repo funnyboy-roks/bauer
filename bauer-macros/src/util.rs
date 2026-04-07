@@ -121,6 +121,8 @@ pub fn parallel_assign<'a>(
     let idents = idents.into_iter();
     let values = values.into_iter();
     quote! {
+        #[allow(unused_unit)]
+        #[allow(unused)]
         let (#(#idents),*) = {
             #prefix
             (#(#values),*)
