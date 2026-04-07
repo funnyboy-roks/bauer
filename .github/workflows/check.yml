@@ -89,10 +89,10 @@ jobs:
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: stable
-      - name: cargo install cargo-rdme
-        uses: taiki-e/install-action@v2.70.3
-        with:
-          tool: cargo-rdme
+      - name: Install cargo-binstall 
+        uses: cargo-bins/cargo-binstall@main
+      - name: Install cargo-rdme
+        run: cargo-binstall cargo-rdme
       - name: update readme
         run: ./gen-readme.sh
       - name: check readme
