@@ -601,8 +601,23 @@
 ///
 /// The value passed to a collector must be a function with the following signature:
 ///
-/// ```ignore
-/// fn my_collector(iter: impl ExactSizeIterator<Item = RepeatType>) -> FieldType;
+/// ```
+/// # type RepeatType = u32;
+/// # type FieldType = usize;
+/// fn my_collector(iter: impl ExactSizeIterator<Item = RepeatType>) -> FieldType
+/// # {
+/// #     // just a simple implementation to be sure the signature is correct
+/// #     iter.len()
+/// # }
+/// #
+/// # #[derive(bauer::Builder)]
+/// # struct Foo {
+/// #     #[builder(repeat = u32, collector = my_collector)]
+/// #     field: usize
+/// # }
+/// #
+/// # let foo = Foo::builder().field(0).field(1).field(2).build();
+/// # assert_eq!(foo.field, 3);
 /// ```
 ///
 /// Where `RepeatType` is the type determined by the [`repeat`] attribute and `FieldType` is the type

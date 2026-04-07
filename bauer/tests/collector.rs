@@ -125,6 +125,101 @@ macro_rules! tests {
                         }
 
 
+                        mod generic {
+                            mod unbounded {
+                                use bauer::Builder;
+
+                                fn generic_collector<T>(iter: impl ExactSizeIterator<Item = T>) -> usize {
+                                    iter.len()
+                                }
+
+                                #[derive(Builder)]
+                                #[builder(kind = $kind)]
+                                struct U32Collector {
+                                    #[builder(repeat = u32, repeat_n = 2..5, collector = generic_collector)]
+                                    field: usize,
+                                }
+
+                                #[test]
+                                fn unbounded_u32() {
+                                    let foo: U32Collector = U32Collector::builder()
+                                        .field(1)
+                                        .field(2)
+                                        .field(3)
+                                        .build()
+                                        $(.$unwrap())?;
+
+                                    assert_eq!(foo.field, 3);
+                                }
+
+                                #[derive(Builder)]
+                                #[builder(kind = $kind)]
+                                struct StrCollector {
+                                    #[builder(repeat = String, into, repeat_n = 2..5, collector = generic_collector)]
+                                    field: usize,
+                                }
+
+                                #[test]
+                                fn unbounded_str() {
+                                    let foo: StrCollector = StrCollector::builder()
+                                        .field("h")
+                                        .field("h")
+                                        .field("h")
+                                        .build()
+                                        $(.$unwrap())?;
+
+                                    assert_eq!(foo.field, 3);
+                                }
+                            }
+
+                            mod bounded {
+                                use bauer::Builder;
+
+                                fn to_string_collector<T: ToString>(iter: impl ExactSizeIterator<Item = T>) -> String {
+                                    iter.map(|x| x.to_string()).collect()
+                                }
+
+                                #[derive(Builder)]
+                                #[builder(kind = $kind)]
+                                struct U32Collector {
+                                    #[builder(repeat = u32, repeat_n = 2..5, collector = to_string_collector)]
+                                    field: String,
+                                }
+
+                                #[test]
+                                fn u32() {
+                                    let foo: U32Collector = U32Collector::builder()
+                                        .field(1)
+                                        .field(2)
+                                        .field(3)
+                                        .build()
+                                        $(.$unwrap())?;
+
+                                    assert_eq!(foo.field, "123");
+                                }
+
+                                #[derive(Builder)]
+                                #[builder(kind = $kind)]
+                                struct StrCollector {
+                                    #[builder(repeat = String, into, repeat_n = 2..5, collector = to_string_collector)]
+                                    field: String,
+                                }
+
+                                #[test]
+                                fn str() {
+                                    let foo: StrCollector = StrCollector::builder()
+                                        .field("h")
+                                        .field("i")
+                                        .field("j")
+                                        .build()
+                                        $(.$unwrap())?;
+
+                                    assert_eq!(foo.field, "hij");
+                                }
+                            }
+
+                        }
+
                     }
                 };
             }
