@@ -5,7 +5,8 @@ use proc_macro2::{Span, TokenStream};
 use quote::{ToTokens, format_ident, quote, quote_spanned};
 use strum::{AsRefStr, IntoStaticStr, VariantArray};
 use syn::{
-    Expr, ExprClosure, Field, Ident, LitStr, Pat, Token, Type, braced, parenthesized,
+    Expr, ExprClosure, Field, Ident, Index, LitStr, Pat, Path, Token, TraitBound, Type, braced,
+    parenthesized,
     parse::{Parse, ParseStream},
     parse_quote, parse_quote_spanned,
     spanned::Spanned,
@@ -340,7 +341,7 @@ impl BuilderField {
     }
 }
 
-#[derive(Clone, Debug, Hash, PartialEq, Eq)]
+#[derive(Clone, Debug)]
 pub enum Len {
     /// No length specified
     None,
@@ -349,7 +350,9 @@ pub enum Len {
         pattern: Pat,
         error: Ident,
     },
-    Int(usize),
+    Int {
+        len: usize,
+    },
     Range {
         start: usize,
         end: Option<usize>,
@@ -360,33 +363,27 @@ pub enum Len {
 
 impl Len {
     pub fn is_some(&self) -> bool {
-        match self {
-            Len::None => false,
-            Len::Raw { .. } | Len::Int(_) | Len::Range { .. } => true,
-        }
+        !self.is_none()
     }
 
     pub fn is_none(&self) -> bool {
-        match self {
-            Len::None => true,
-            Len::Raw { .. } | Len::Int(_) | Len::Range { .. } => false,
-        }
+        matches!(self, Self::None)
     }
 
     fn range(&self) -> Option<Range<usize>> {
         match self {
             Len::None => None,
             Len::Raw { .. } => None,
-            Len::Int(n) => Some(*n..*n + 1),
-            Len::Range {
+            &Len::Int { len } => Some(len..len + 1),
+            &Len::Range {
                 start, end: None, ..
-            } => Some(*start..usize::MAX),
-            Len::Range {
+            } => Some(start..usize::MAX),
+            &Len::Range {
                 start,
                 end: Some(end),
                 inclusive,
                 ..
-            } => Some(*start..*end + usize::from(*inclusive)),
+            } => Some(start..end + usize::from(inclusive)),
         }
     }
 
@@ -398,19 +395,25 @@ impl Len {
         out
     }
 
-    pub fn to_trait(&self, out: &mut TokenStream) -> syn::Result<Ident> {
+    pub fn to_trait(
+        &self,
+        krate: &Ident,
+        wrapper: &Ident,
+        out: &mut TokenStream,
+    ) -> syn::Result<TraitBound> {
         match self {
             Len::None => unreachable!("Len::into_trait called on None"),
             Len::Raw { .. } => unreachable!("Len::into_trait called on Raw"),
-            Len::Int(len) => {
-                let ident = format_ident!("Eq_{}", len);
-                let expanded = Self::expanded_tuple(parse_quote! { () }, *len);
+            &Len::Int { len } => {
+                let expanded = Self::expanded_tuple(parse_quote! { () }, len);
                 out.extend(quote! {
-                    #[allow(non_camel_case_types)]
-                    trait #ident {}
-                    impl #ident for #expanded {}
+                    impl ::#krate::__private::sealed::Sealed for #wrapper<#expanded> {}
+                    impl ::#krate::state::Eq<#len> for #wrapper<#expanded> {}
                 });
-                Ok(ident)
+                let len = Index::from(len); // remove the `usize` suffix
+                Ok(parse_quote! {
+                    ::#krate::state::Eq<#len>
+                })
             }
             Len::Range {
                 start,
@@ -433,37 +436,43 @@ impl Len {
                     );
                 }
 
-                let ident = format_ident!(
-                    "Range_{}_{}{}",
-                    start,
-                    end,
-                    if *inclusive { "_Inclusive" } else { "" },
-                );
-                out.extend(quote! {
-                    #[allow(non_camel_case_types)]
-                    trait #ident {}
-                });
+                let trait_: Path = if *inclusive {
+                    parse_quote! {
+                        ::#krate::state::RangeInclusive
+                    }
+                } else {
+                    parse_quote! {
+                        ::#krate::state::RangeExclusive
+                    }
+                };
 
+                let start = Index::from(*start); // remove the `usize` suffix
+                let end = Index::from(*end); // remove the `usize` suffix
                 for i in range {
                     let expanded = Self::expanded_tuple(parse_quote! { () }, i);
                     out.extend(quote! {
-                        impl #ident for #expanded {}
+                        impl ::#krate::__private::sealed::Sealed for #wrapper<#expanded> {}
+                        impl #trait_<#start, #end> for #wrapper<#expanded> {}
                     });
                 }
 
-                Ok(ident)
+                Ok(parse_quote! {
+                    #trait_<#start, #end>
+                })
             }
             Len::Range {
                 start, end: None, ..
             } => {
-                let ident = format_ident!("Gte_{}", start);
                 let expanded = Self::expanded_tuple(parse_quote! { T }, *start);
+                let start = Index::from(*start); // remove the `usize` suffix
                 out.extend(quote! {
                     #[allow(non_camel_case_types)]
-                    trait #ident {}
-                    impl<T> #ident for #expanded {}
+                    impl<T> ::#krate::__private::sealed::Sealed for #wrapper<#expanded> {}
+                    impl<T> ::#krate::state::AtLeast<#start> for #wrapper<#expanded> {}
                 });
-                Ok(ident)
+                Ok(parse_quote! {
+                    ::#krate::state::AtLeast<#start>
+                })
             }
         }
     }
@@ -479,7 +488,7 @@ impl TryFrom<syn::Pat> for Len {
                 ..
             }) => {
                 let len = int.base10_parse()?;
-                Len::Int(len)
+                Len::Int { len }
             }
             syn::Pat::Range(syn::ExprRange {
                 start: Some(ref start),

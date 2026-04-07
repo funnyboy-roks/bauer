@@ -1,7 +1,7 @@
 use bauer::Builder;
 
 #[derive(Debug, Builder, PartialEq)]
-#[builder(kind = "borrowed")]
+#[builder(kind = "type-state")]
 pub struct Foo {
     pub field_a: u32,
     #[builder(default)]
@@ -18,7 +18,7 @@ pub struct Foo {
     pub field_g: Vec<u32>,
     #[builder(repeat, rename = "field_h_single")]
     pub field_h: Vec<u32>,
-    #[builder(repeat = char)]
+    #[builder(repeat = char, repeat_n = 3)]
     pub field_i: String,
 }
 
@@ -32,8 +32,8 @@ fn main() {
         .field_h_single(3)
         .field_i('h')
         .field_i('i')
-        .build()
-        .unwrap();
+        .field_i('j')
+        .build();
 
     dbg!(&x);
 
@@ -48,7 +48,7 @@ fn main() {
             field_f: String::from("world"),
             field_g: vec![0, 1],
             field_h: vec![2, 3],
-            field_i: String::from("hi"),
+            field_i: String::from("hij"),
         }
     );
 }

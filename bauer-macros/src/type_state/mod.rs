@@ -1,9 +1,10 @@
-use std::collections::{HashMap, hash_map::Entry};
+use std::collections::HashMap;
 
 use proc_macro2::TokenStream;
 use quote::{ToTokens, format_ident, quote, quote_spanned};
 use syn::{
-    DeriveInput, Ident, Token, Type, TypePath, parse_quote, parse_quote_spanned, spanned::Spanned,
+    DeriveInput, Ident, Token, TraitBound, Type, TypePath, parse_quote, parse_quote_spanned,
+    spanned::Spanned,
 };
 
 use crate::{
@@ -20,7 +21,7 @@ fn build_fn(
     builder_attr: &BuilderAttr,
     fields: &[BuilderField],
     generic_fields: &[&BuilderField],
-    len_structs: &HashMap<usize, Ident>,
+    len_structs: &HashMap<usize, TraitBound>,
     input: &DeriveInput,
     inner: &Ident,
 ) -> TokenStream {
@@ -35,7 +36,7 @@ fn build_fn(
 
         if let Some(Repeat {
             inner_ty,
-            len: Len::Int(_),
+            len: Len::Int { .. },
             array,
             collector,
         }) = &field.attr.repeat
@@ -143,9 +144,9 @@ fn build_fn(
     }
 
     for (&i, len) in len_structs {
-        let generic = &generic_fields[i].idents.pascal;
+        let FieldIdents { pascal, count, .. } = &generic_fields[i].idents;
         builder_where.extend(quote! {
-            #generic: #len,
+            #count<#pascal>: #len,
         });
     }
 
@@ -244,7 +245,6 @@ pub fn type_state_builder(
     }));
 
     let mut len_structs = HashMap::new();
-    let mut len_traits = HashMap::<Len, Ident>::new();
 
     for (i, &f) in generic_fields.iter().enumerate() {
         let Some(repeat) = &f.attr.repeat else {
@@ -255,16 +255,12 @@ pub fn type_state_builder(
             continue;
         }
 
-        let ident = match len_traits.entry(repeat.len.clone()) {
-            Entry::Occupied(entry) => entry.get().clone(),
-            Entry::Vacant(entry) => {
-                let ident = match repeat.len.to_trait(&mut out) {
-                    Ok(i) => i,
-                    Err(e) => return e.to_compile_error(),
-                };
-                entry.insert(ident.clone());
-                ident
-            }
+        let ident = match repeat
+            .len
+            .to_trait(&builder_attr.krate, &f.idents.count, &mut out)
+        {
+            Ok(i) => i,
+            Err(e) => return e.to_compile_error(),
         };
         len_structs.insert(i, ident);
     }
@@ -276,7 +272,7 @@ pub fn type_state_builder(
         let ty = &f.ty;
         if let Some(Repeat {
             inner_ty,
-            len: Len::Int(len),
+            len: Len::Int { len },
             ..
         }) = &f.attr.repeat
         {
@@ -292,7 +288,8 @@ pub fn type_state_builder(
 
     let init = fields.iter().map(|f| {
         if let Some(Repeat {
-            len: Len::Int(_), ..
+            len: Len::Int { .. },
+            ..
         }) = &f.attr.repeat
         {
             quote! { ::core::mem::MaybeUninit::uninit() }
@@ -450,7 +447,7 @@ pub fn type_state_builder(
                     <Token![where]>::default().to_tokens(&mut field_where);
                 }
 
-                let add = if let Len::Int(_) = len {
+                let add = if let Len::Int { .. } = len {
                     field_where.extend(quote! {
                         #private_module::state::Count::<#pascal>: #private_module::state::Countable,
                     });

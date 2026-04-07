@@ -4,8 +4,8 @@ use proc_macro::TokenStream;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{ToTokens, format_ident, quote, quote_spanned};
 use syn::{
-    DeriveInput, TypePath, parse::ParseStream, parse_macro_input, parse_quote, parse_quote_spanned,
-    spanned::Spanned,
+    DeriveInput, Pat, TypePath, parse::ParseStream, parse_macro_input, parse_quote,
+    parse_quote_spanned, spanned::Spanned,
 };
 
 use crate::{
@@ -139,12 +139,16 @@ pub fn builder(input: TokenStream) -> TokenStream {
                 ..
             }) = &f.attr.repeat
             {
+                let error_msg = format!(
+                    "Invalid number of repeat arguments provided.  Expected {}, got {{}}",
+                    pattern.to_token_stream()
+                );
                 variants.push((
                     quote! {
                         #error(usize)
                     },
-                    quote!{
-                        Self::#error(n) => write!(f, "Invalid number of repeat arguments provided.  Expected {:?}, got {}", #pattern, n)
+                    quote! {
+                        Self::#error(n) => write!(f, #error_msg, n)
                     },
                 ));
             }
@@ -173,11 +177,21 @@ pub fn builder(input: TokenStream) -> TokenStream {
                     })
                 };
 
+                if let Pat::Ident(_) = pattern {
+                quote_spanned! { pattern.span()=>
+                    #name: if self.#inner.#field_i.len() == #pattern {
+                        #value
+                    } else {
+                        return Err(#build_err::#error(self.#inner.#field_i.len()));
+                    }
+                }
+                } else {
                 quote_spanned! { pattern.span()=>
                     #name: match self.#inner.#field_i.len() {
                         #pattern => #value,
                         len => return Err(#build_err::#error(len)),
                     }
+                }
                 }
             } else {
                 assert!(!rep.array);

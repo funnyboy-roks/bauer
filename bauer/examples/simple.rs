@@ -1,15 +1,17 @@
+#![allow(unused)]
+
 use bauer::Builder;
 
 #[derive(Debug, Builder)]
-#[builder(kind = "owned", prefix = "set_")]
+#[builder(kind = "type-state", prefix = "set_")]
 pub struct Foo {
     #[builder(default = "42")]
-    pub field_a: u32,
-    pub field_b: bool,
+    field_a: u32,
+    field_b: bool,
     #[builder(into)]
-    pub field_c: String,
-    #[builder(skip_prefix, skip_suffix, rename = "add_d", repeat)]
-    pub field_d: Vec<f64>,
+    field_c: String,
+    #[builder(skip_prefix, skip_suffix, rename = "add_d", repeat, repeat_n = 3)]
+    field_d: Vec<f64>,
 }
 
 fn main() {
@@ -20,8 +22,7 @@ fn main() {
         .add_d(std::f64::consts::PI)
         .add_d(std::f64::consts::TAU)
         .add_d(2.72)
-        .build()
-        .unwrap();
+        .build();
 
     dbg!(x);
 }

@@ -697,3 +697,40 @@ pub use bauer_macros::Builder;
 
 #[doc(hidden)]
 pub mod __private;
+
+pub mod state {
+    use crate::__private;
+
+    /// Represents a type that is equal to the constant value `N`
+    ///
+    /// This trait should never be user-implemented (hence the `Sealed`).  If you receive an error
+    /// about this, you likely have provided the wrong number of repeat arguments to a builder.
+    #[deprecated = "This trait should not be implemented by hand"]
+    pub trait Eq<const N: usize>: __private::sealed::Sealed {}
+
+    /// Represents a type that is in the range of `LOW..HIGH`
+    ///
+    /// This trait should never be user-implemented (hence the `Sealed`).  If you receive an error
+    /// about this, you likely have provided the wrong number of repeat arguments to a builder.
+    #[deprecated = "This trait should not be implemented by hand"]
+    pub trait RangeExclusive<const LOW: usize, const HIGH: usize>:
+        __private::sealed::Sealed
+    {
+    }
+
+    /// Represents a type that is in the range of `LOW..=HIGH`
+    ///
+    /// This trait should never be user-implemented (hence the `Sealed`).  If you receive an error
+    /// about this, you likely have provided the wrong number of repeat arguments to a builder.
+    #[deprecated = "This trait should not be implemented by hand"]
+    pub trait RangeInclusive<const LOW: usize, const HIGH: usize>:
+        __private::sealed::Sealed
+    {
+    }
+
+    /// Represents a type that is in the range of `LOW..`
+    ///
+    /// This trait should never be user-implemented (hence the `Sealed`).  If you receive an error
+    /// about this, you likely have provided the wrong number of repeat arguments to a builder.
+    pub trait AtLeast<const LOW: usize>: __private::sealed::Sealed {}
+}

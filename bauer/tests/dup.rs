@@ -2,12 +2,19 @@
 
 macro_rules! tests {
     ($kind: literal in mod $module: ident $($unwrap: ident)?) => {
+        #[attribute::dup(
+            [Complex0, complex0],
+            [Complex1, complex1],
+            [Complex2, complex2],
+            [Complex3, complex3],
+            [Complex4, complex4],
+            [Complex5, complex5],
+            [Complex6, complex6],
+        )]
         mod $module {
-            use bauer::Builder;
-
-            #[derive(Debug, Builder, PartialEq)]
+            #[derive(Debug, bauer::Builder, PartialEq)]
             #[builder(kind = $kind)]
-            struct Complex {
+            struct NAME_0 {
                 field_a: u32,
                 #[builder(default)]
                 field_b: u32,
@@ -30,8 +37,8 @@ macro_rules! tests {
             }
 
             #[test]
-            fn complex() {
-                let c: Complex = Complex::builder()
+            fn NAME_1() {
+                let c: NAME_0 = NAME_0::builder()
                     .field_a(5)
                     .field_f("world")
                     .field_g(0)

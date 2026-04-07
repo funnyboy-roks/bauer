@@ -1,6 +1,6 @@
 use std::{marker::PhantomData, mem::MaybeUninit};
 
-use crate::__private::sealed::Sealed;
+use crate::__private;
 
 // NOTE: These functions are not associated with the trait so that they may be const.
 
@@ -27,7 +27,7 @@ where
     }
 }
 
-pub trait BuilderState: Sealed {
+pub trait BuilderState: __private::sealed::Sealed {
     const SET: bool;
 }
 
@@ -54,6 +54,15 @@ where
 {
     const COUNT: usize = 1 + <Count<R>>::COUNT;
 }
+
+/// `N`
+pub trait Eq<const N: usize>: __private::sealed::Sealed {}
+/// `LOW..HIGH`
+pub trait RangeExclusive<const LOW: usize, const HIGH: usize>: __private::sealed::Sealed {}
+/// `LOW..=HIGH`
+pub trait RangeInclusive<const LOW: usize, const HIGH: usize>: __private::sealed::Sealed {}
+/// `LOW..`
+pub trait AtLeast<const LOW: usize>: __private::sealed::Sealed {}
 
 #[cfg(test)]
 mod test {
