@@ -78,6 +78,21 @@ jobs:
         uses: dtolnay/install@cargo-docs-rs
       - name: cargo docs-rs
         run: cargo docs-rs -p bauer
+  readme:
+    runs-on: ubuntu-latest
+    name: ubuntu / stable / readme
+    steps:
+      - uses: actions/checkout@v6.0.2
+        with:
+          submodules: true
+      - name: cargo install cargo-rdme
+        uses: taiki-e/install-action@v2.70.3
+        with:
+          tool: cargo-rdme
+      - name: update readme
+        run: ./gen-readme.sh
+      - name: check readme
+        run: git diff --quiet README.md
   hack:
     # cargo-hack checks combinations of feature flags to ensure that features are all additive
     # which is required for feature unification
