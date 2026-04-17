@@ -212,7 +212,9 @@ pub fn pattern_match_type(pattern: &Type, ty: &Type, out: &mut Vec<TokenStream>)
         (Type::Never(_), Type::Never(_)) => true,
         (Type::Paren(t), Type::Paren(p)) => pattern_match_type(&p.elem, &t.elem, out),
         (Type::Path(t), Type::Path(p)) => match_path(p, t, out),
-        (Type::Reference(t), Type::Reference(p)) => pattern_match_type(&p.elem, &t.elem, out),
+        (Type::Reference(t), Type::Reference(p)) => {
+            t.mutability == p.mutability && pattern_match_type(&p.elem, &t.elem, out)
+        }
         (Type::Slice(t), Type::Slice(p)) => pattern_match_type(&p.elem, &t.elem, out),
         (Type::TraitObject(t), Type::TraitObject(p)) => match_trait_object(p, t, out),
         (Type::Tuple(t), Type::Tuple(p)) => match_tuple(p, t, out),
