@@ -18,21 +18,25 @@ use syn::TypeTraitObject;
 use syn::TypeTuple;
 use syn::parse_quote;
 
-fn match_arrays(pattern: &TypeArray, ty: &TypeArray, out: &mut Vec<TokenStream>) -> bool {
+fn match_arrays(pattern: &TypeArray, ty: &TypeArray, matches: &mut Vec<TokenStream>) -> bool {
     if pattern == ty {
         true
     } else if let Expr::Infer(_) = pattern.len {
-        let ret = pattern_match_type(&pattern.elem, &ty.elem, out);
-        out.push(ty.len.to_token_stream());
+        let ret = pattern_match_type_inner(&pattern.elem, &ty.elem, matches);
+        matches.push(ty.len.to_token_stream());
         ret
     } else if ty.len == pattern.len {
-        pattern_match_type(&pattern.elem, &ty.elem, out)
+        pattern_match_type_inner(&pattern.elem, &ty.elem, matches)
     } else {
         false
     }
 }
 
-fn match_bare_function(pattern: &TypeBareFn, ty: &TypeBareFn, out: &mut Vec<TokenStream>) -> bool {
+fn match_bare_function(
+    pattern: &TypeBareFn,
+    ty: &TypeBareFn,
+    matches: &mut Vec<TokenStream>,
+) -> bool {
     if pattern == ty {
         return true;
     }
@@ -42,7 +46,7 @@ fn match_bare_function(pattern: &TypeBareFn, ty: &TypeBareFn, out: &mut Vec<Toke
     }
 
     for (f, p) in ty.inputs.iter().zip(pattern.inputs.iter()) {
-        if !pattern_match_type(&p.ty, &f.ty, out) {
+        if !pattern_match_type_inner(&p.ty, &f.ty, matches) {
             return false;
         }
     }
@@ -50,14 +54,14 @@ fn match_bare_function(pattern: &TypeBareFn, ty: &TypeBareFn, out: &mut Vec<Toke
     match (&ty.output, &pattern.output) {
         (ReturnType::Default, ReturnType::Default) => true,
         (ReturnType::Default, ReturnType::Type(_, ty)) => {
-            pattern_match_type(ty, &parse_quote! { () }, out)
+            pattern_match_type_inner(ty, &parse_quote! { () }, matches)
         }
         (ReturnType::Type(_, _), ReturnType::Default) => false,
-        (ReturnType::Type(_, f), ReturnType::Type(_, p)) => pattern_match_type(p, f, out),
+        (ReturnType::Type(_, f), ReturnType::Type(_, p)) => pattern_match_type_inner(p, f, matches),
     }
 }
 
-fn match_path(pattern: &TypePath, ty: &TypePath, out: &mut Vec<TokenStream>) -> bool {
+fn match_path(pattern: &TypePath, ty: &TypePath, matches: &mut Vec<TokenStream>) -> bool {
     if pattern == ty {
         return true;
     }
@@ -72,48 +76,34 @@ fn match_path(pattern: &TypePath, ty: &TypePath, out: &mut Vec<TokenStream>) -> 
         }
 
         match (&t_seg.arguments, &p_seg.arguments) {
-            (PathArguments::None, PathArguments::None)
-            | (PathArguments::None, PathArguments::AngleBracketed(_))
-            | (PathArguments::None, PathArguments::Parenthesized(_))
-            | (PathArguments::AngleBracketed(_), PathArguments::None)
-            | (PathArguments::AngleBracketed(_), PathArguments::Parenthesized(_))
-            | (PathArguments::Parenthesized(_), PathArguments::None)
-            | (PathArguments::Parenthesized(_), PathArguments::AngleBracketed(_)) => {
-                return false;
-            }
             (PathArguments::AngleBracketed(t), PathArguments::AngleBracketed(p)) => {
                 if t.args.len() != p.args.len() {
                     return false;
                 }
 
                 for (t, p) in t.args.iter().zip(p.args.iter()) {
+                    use GenericArgument::{Const, Lifetime, Type as GenType};
                     match (t, p) {
-                        (GenericArgument::Lifetime(tl), GenericArgument::Lifetime(pl)) => {
+                        (Lifetime(tl), Lifetime(pl)) => {
                             if tl != pl {
                                 return false;
                             }
                         }
-                        (
-                            GenericArgument::Lifetime(lifetime),
-                            GenericArgument::Type(Type::Infer(_)),
-                        ) => {
-                            out.push(lifetime.to_token_stream());
+                        (Lifetime(lifetime), GenType(Type::Infer(_))) => {
+                            matches.push(lifetime.to_token_stream());
                         }
-                        (GenericArgument::Lifetime(_), _) => return false,
-                        (GenericArgument::Type(t_ty), GenericArgument::Type(p_ty)) => {
-                            if !pattern_match_type(p_ty, t_ty, out) {
+                        (Lifetime(_), _) => return false,
+                        (GenType(t_ty), GenType(p_ty)) => {
+                            if !pattern_match_type_inner(p_ty, t_ty, matches) {
                                 return false;
                             }
                         }
-                        (GenericArgument::Type(_), _) => return false,
-                        (GenericArgument::Const(expr), GenericArgument::Type(Type::Infer(_))) => {
-                            out.push(expr.to_token_stream());
+                        (GenType(_), _) => return false,
+                        (Const(expr), GenType(Type::Infer(_))) => {
+                            matches.push(expr.to_token_stream());
                         }
-                        (GenericArgument::Const(_), _) => return false,
-                        (GenericArgument::AssocType(_), _)
-                        | (GenericArgument::AssocConst(_), _)
-                        | (GenericArgument::Constraint(_), _) => unreachable!(),
-                        _ => todo!(),
+                        (Const(_), _) => return false,
+                        _ => return false,
                     }
                 }
             }
@@ -123,7 +113,7 @@ fn match_path(pattern: &TypePath, ty: &TypePath, out: &mut Vec<TokenStream>) -> 
                 }
 
                 for (f, p) in t.inputs.iter().zip(p.inputs.iter()) {
-                    if !pattern_match_type(p, f, out) {
+                    if !pattern_match_type_inner(p, f, matches) {
                         return false;
                     }
                 }
@@ -131,11 +121,11 @@ fn match_path(pattern: &TypePath, ty: &TypePath, out: &mut Vec<TokenStream>) -> 
                 let out_matched = match (&t.output, &p.output) {
                     (ReturnType::Default, ReturnType::Default) => true,
                     (ReturnType::Default, ReturnType::Type(_, ty)) => {
-                        pattern_match_type(ty, &parse_quote! { () }, out)
+                        pattern_match_type_inner(ty, &parse_quote! { () }, matches)
                     }
                     (ReturnType::Type(_, _), ReturnType::Default) => false,
                     (ReturnType::Type(_, f), ReturnType::Type(_, p)) => {
-                        pattern_match_type(p, f, out)
+                        pattern_match_type_inner(p, f, matches)
                     }
                 };
 
@@ -143,6 +133,7 @@ fn match_path(pattern: &TypePath, ty: &TypePath, out: &mut Vec<TokenStream>) -> 
                     return false;
                 }
             }
+            _ => return false,
         };
     }
 
@@ -152,7 +143,7 @@ fn match_path(pattern: &TypePath, ty: &TypePath, out: &mut Vec<TokenStream>) -> 
 fn match_trait_object(
     p: &TypeTraitObject,
     t: &TypeTraitObject,
-    out: &mut Vec<TokenStream>,
+    matches: &mut Vec<TokenStream>,
 ) -> bool {
     if p == t {
         return true;
@@ -162,7 +153,7 @@ fn match_trait_object(
         let bound = p.bounds.iter().next().expect("checked");
         match bound {
             TypeParamBound::Trait(trait_) => {
-                out.push(t.bounds.to_token_stream());
+                matches.push(t.bounds.to_token_stream());
                 if trait_.path.is_ident("__") {
                     return true;
                 }
@@ -173,7 +164,7 @@ fn match_trait_object(
     false
 }
 
-fn match_tuple(pattern: &TypeTuple, ty: &TypeTuple, out: &mut Vec<TokenStream>) -> bool {
+fn match_tuple(pattern: &TypeTuple, ty: &TypeTuple, matches: &mut Vec<TokenStream>) -> bool {
     if pattern == ty {
         return true;
     }
@@ -183,7 +174,7 @@ fn match_tuple(pattern: &TypeTuple, ty: &TypeTuple, out: &mut Vec<TokenStream>) 
     }
 
     for (t, p) in ty.elems.iter().zip(pattern.elems.iter()) {
-        if !pattern_match_type(p, t, out) {
+        if !pattern_match_type_inner(p, t, matches) {
             return false;
         }
     }
@@ -191,37 +182,46 @@ fn match_tuple(pattern: &TypeTuple, ty: &TypeTuple, out: &mut Vec<TokenStream>) 
     true
 }
 
-pub fn pattern_match_type(pattern: &Type, ty: &Type, out: &mut Vec<TokenStream>) -> bool {
+fn pattern_match_type_inner(pattern: &Type, ty: &Type, matches: &mut Vec<TokenStream>) -> bool {
     if pattern == ty {
         return true;
     };
 
     if let Type::Infer(_) = pattern {
-        out.push(ty.to_token_stream());
+        matches.push(ty.to_token_stream());
         return true;
     }
 
     match (ty, pattern) {
-        (Type::Array(arr), Type::Array(pat)) => match_arrays(pat, arr, out),
-        (Type::BareFn(func), Type::BareFn(pat)) => match_bare_function(pat, func, out),
-        (Type::Group(t), Type::Group(p)) => pattern_match_type(&p.elem, &t.elem, out),
+        (Type::Array(arr), Type::Array(pat)) => match_arrays(pat, arr, matches),
+        (Type::BareFn(func), Type::BareFn(pat)) => match_bare_function(pat, func, matches),
+        (Type::Group(t), Type::Group(p)) => pattern_match_type_inner(&p.elem, &t.elem, matches),
         (Type::Macro(t), Type::Macro(p)) => t == p,
         (Type::Ptr(t), Type::Ptr(p)) => {
-            t.mutability == p.mutability && pattern_match_type(&p.elem, &t.elem, out)
+            t.mutability == p.mutability && pattern_match_type_inner(&p.elem, &t.elem, matches)
         }
         (Type::Never(_), Type::Never(_)) => true,
-        (Type::Paren(t), Type::Paren(p)) => pattern_match_type(&p.elem, &t.elem, out),
-        (Type::Path(t), Type::Path(p)) => match_path(p, t, out),
+        (Type::Paren(t), Type::Paren(p)) => pattern_match_type_inner(&p.elem, &t.elem, matches),
+        (Type::Path(t), Type::Path(p)) => match_path(p, t, matches),
         (Type::Reference(t), Type::Reference(p)) => {
-            t.mutability == p.mutability && pattern_match_type(&p.elem, &t.elem, out)
+            t.mutability == p.mutability && pattern_match_type_inner(&p.elem, &t.elem, matches)
         }
-        (Type::Slice(t), Type::Slice(p)) => pattern_match_type(&p.elem, &t.elem, out),
-        (Type::TraitObject(t), Type::TraitObject(p)) => match_trait_object(p, t, out),
-        (Type::Tuple(t), Type::Tuple(p)) => match_tuple(p, t, out),
+        (Type::Slice(t), Type::Slice(p)) => pattern_match_type_inner(&p.elem, &t.elem, matches),
+        (Type::TraitObject(t), Type::TraitObject(p)) => match_trait_object(p, t, matches),
+        (Type::Tuple(t), Type::Tuple(p)) => match_tuple(p, t, matches),
         (Type::ImplTrait(_), Type::ImplTrait(_)) => unreachable!("Not allowed in this position"),
         (Type::Infer(_), Type::Infer(_)) => unreachable!("Not allowed in this position"),
         (Type::Verbatim(_), Type::Verbatim(_)) => unreachable!(),
         _ => false,
+    }
+}
+
+pub fn pattern_match_type(pattern: &Type, ty: &Type) -> Option<Vec<TokenStream>> {
+    let mut matches = Vec::new();
+    if pattern_match_type_inner(pattern, ty, &mut matches) {
+        Some(matches)
+    } else {
+        None
     }
 }
 
@@ -292,42 +292,32 @@ mod test {
         ($pat: ty => $($ty: ty => $($match: ty),*;)*) => {
             let pattern: Type = parse_quote! { $pat };
 
-            let mut out = Vec::new();
-
             $(
-                out.clear();
                 let ty: Type = parse_quote! { $ty };
-                let matches = pattern_match_type(&pattern, &ty, &mut out);
+                let mut matches = pattern_match_type(&pattern, &ty).unwrap();
 
-                for (i, m) in out.iter().enumerate() {
-                    eprintln!("out[{}] = {}", i, m);
+                for (i, m) in matches.iter().enumerate() {
+                    eprintln!("matches[{}] = {}", i, m);
                 }
-                assert!(matches);
 
                 $(
                     eprintln!("~= {}", stringify!($ty));
-                    let ty: Type = syn::parse2(out.remove(0)).unwrap();
+                    let ty: Type = syn::parse2(matches.remove(0)).unwrap();
                     let inner: Type = parse_quote! { $match };
                     assert_eq!(ty, inner);
                 )*
-                assert!(out.is_empty(), "more matches than expected");
+                assert!(matches.is_empty(), "more matches than expected");
             )*
         };
         ($pat: ty => ! $($ty: ty),*$(,)?) => {
             let pattern: Type = parse_quote! { $pat };
 
-            let mut out = Vec::new();
-
             $(
-                out.clear();
                 let ty: Type = parse_quote! { $ty };
-                let matches = pattern_match_type(&pattern, &ty, &mut out);
+                let matches = pattern_match_type(&pattern, &ty);
 
                 eprintln!("!= {}", stringify!($ty));
-                for (i, m) in out.iter().enumerate() {
-                    eprintln!("out[{}] = {}", i, m);
-                }
-                assert!(!matches);
+                assert!(matches.is_none());
             )*
         };
     }
@@ -593,19 +583,19 @@ mod test {
 
     #[test]
     fn roundtrip() {
-        let mut out = Vec::new();
         let matches = pattern_match_type(
             &parse_quote! { HashMap<_, _> },
             &parse_quote! { HashMap<String, Value> },
-            &mut out,
-        );
-        assert!(matches);
+        )
+        .unwrap();
 
         let out = replace(
-            &out,
+            &matches,
             quote! { repeat = (#0, #1), adapter = |name: impl Into<#0>, value: Value| (name.into(), value) },
         ).unwrap();
+
         dbg!(out.to_string());
+
         assert_eq!(
             out.to_string(),
             quote! {  repeat = (String, Value), adapter = |name: impl Into<String>, value: Value| (name.into(), value)  }.to_string()

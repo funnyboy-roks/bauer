@@ -71,13 +71,9 @@ impl On {
     pub fn apply(&self, field_ty: &Type) -> syn::Result<Option<TokenStream>> {
         use crate::util::pattern::{pattern_match_type, replace};
 
-        let mut out = Vec::new();
-        let matches = pattern_match_type(&self.pattern, field_ty, &mut out);
-        if !matches {
-            return Ok(None);
-        }
-
-        Ok(Some(replace(&out, self.attributes.clone())?))
+        pattern_match_type(&self.pattern, field_ty)
+            .map(|matches| replace(&matches, self.attributes.clone()))
+            .transpose()
     }
 }
 
