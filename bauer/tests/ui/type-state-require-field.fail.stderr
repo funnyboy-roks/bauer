@@ -1,7 +1,7 @@
 error[E0599]: no method named `build` found for struct `FooBuilder<Foo_FieldA_Set<false>>` in the current scope
   --> tests/ui/type-state-require-field.fail.rs:10:35
    |
- 3 | #[derive(Builder)]
+3  | #[derive(Builder)]
    |          ------- method `build` not found for this struct
 ...
 10 |     let foo: Foo = Foo::builder().build(); // fail

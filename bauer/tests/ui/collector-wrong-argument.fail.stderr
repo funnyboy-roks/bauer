@@ -12,7 +12,7 @@ error[E0308]: mismatched types
 note: function defined here
   --> tests/ui/collector-wrong-argument.fail.rs:3:4
    |
- 3 | fn count(_wrong_argument: Vec<u8>) -> usize {
+3  | fn count(_wrong_argument: Vec<u8>) -> usize {
    |    ^^^^^ ------------------------
 
 error[E0308]: mismatched types
@@ -29,5 +29,5 @@ error[E0308]: mismatched types
 note: function defined here
   --> tests/ui/collector-wrong-argument.fail.rs:3:4
    |
- 3 | fn count(_wrong_argument: Vec<u8>) -> usize {
+3  | fn count(_wrong_argument: Vec<u8>) -> usize {
    |    ^^^^^ ------------------------

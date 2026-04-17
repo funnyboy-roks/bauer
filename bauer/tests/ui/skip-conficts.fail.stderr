@@ -1,7 +1,7 @@
 error: `skip` may not be used with any other attributes
   --> tests/ui/skip-conficts.fail.rs:8:23
    |
- 8 |             #[builder(skip, $($tt)*)]
+8  |             #[builder(skip, $($tt)*)]
    |                       ^^^^
 ...
 24 | define!(BeforeDefault,    AfterDefault    as (       u32) => default                       );
@@ -23,7 +23,7 @@ error: `skip` may not be used with any other attributes
 error: `skip` may not be used with any other attributes
   --> tests/ui/skip-conficts.fail.rs:8:23
    |
- 8 |             #[builder(skip, $($tt)*)]
+8  |             #[builder(skip, $($tt)*)]
    |                       ^^^^
 ...
 25 | define!(BeforeRepeat,     AfterRepeat     as (  Vec<u32>) => repeat                        );
@@ -45,7 +45,7 @@ error: `skip` may not be used with any other attributes
 error: `skip` may not be used with any other attributes
   --> tests/ui/skip-conficts.fail.rs:8:23
    |
- 8 |             #[builder(skip, $($tt)*)]
+8  |             #[builder(skip, $($tt)*)]
    |                       ^^^^
 ...
 26 | define!(BeforeRepeatN,    AfterRepeatN    as (  Vec<u32>) => repeat, repeat_n = 2          );
@@ -67,7 +67,7 @@ error: `skip` may not be used with any other attributes
 error: `skip` may not be used with any other attributes
   --> tests/ui/skip-conficts.fail.rs:8:23
    |
- 8 |             #[builder(skip, $($tt)*)]
+8  |             #[builder(skip, $($tt)*)]
    |                       ^^^^
 ...
 27 | define!(BeforeCollector,  AfterCollector  as (       u32) => repeat = u32, collector = foo );
@@ -89,7 +89,7 @@ error: `skip` may not be used with any other attributes
 error: `skip` may not be used with any other attributes
   --> tests/ui/skip-conficts.fail.rs:8:23
    |
- 8 |             #[builder(skip, $($tt)*)]
+8  |             #[builder(skip, $($tt)*)]
    |                       ^^^^
 ...
 28 | define!(BeforeInto,       AfterInto       as (       u32) => into                          );
@@ -111,7 +111,7 @@ error: `skip` may not be used with any other attributes
 error: `skip` may not be used with any other attributes
   --> tests/ui/skip-conficts.fail.rs:8:23
    |
- 8 |             #[builder(skip, $($tt)*)]
+8  |             #[builder(skip, $($tt)*)]
    |                       ^^^^
 ...
 29 | define!(BeforeTuple,      AfterTuple      as ((u32, u32)) => tuple                         );
@@ -133,7 +133,7 @@ error: `skip` may not be used with any other attributes
 error: `skip` may not be used with any other attributes
   --> tests/ui/skip-conficts.fail.rs:8:23
    |
- 8 |             #[builder(skip, $($tt)*)]
+8  |             #[builder(skip, $($tt)*)]
    |                       ^^^^
 ...
 30 | define!(BeforeAdapter,    AfterAdapter    as (       u32) => adapter = |n:u32| n + 2       );
@@ -155,7 +155,7 @@ error: `skip` may not be used with any other attributes
 error: `skip` may not be used with any other attributes
   --> tests/ui/skip-conficts.fail.rs:8:23
    |
- 8 |             #[builder(skip, $($tt)*)]
+8  |             #[builder(skip, $($tt)*)]
    |                       ^^^^
 ...
 31 | define!(BeforeRename,     AfterRename     as (       u32) => rename = "renamed"            );
@@ -177,7 +177,7 @@ error: `skip` may not be used with any other attributes
 error: `skip` may not be used with any other attributes
   --> tests/ui/skip-conficts.fail.rs:8:23
    |
- 8 |             #[builder(skip, $($tt)*)]
+8  |             #[builder(skip, $($tt)*)]
    |                       ^^^^
 ...
 32 | define!(BeforeSkipPrefix, AfterSkipPrefix as (       u32) => skip_prefix                   );
@@ -199,7 +199,7 @@ error: `skip` may not be used with any other attributes
 error: `skip` may not be used with any other attributes
   --> tests/ui/skip-conficts.fail.rs:8:23
    |
- 8 |             #[builder(skip, $($tt)*)]
+8  |             #[builder(skip, $($tt)*)]
    |                       ^^^^
 ...
 33 | define!(BeforeSkipSuffix, AfterSkipSuffix as (       u32) => skip_suffix                   );
@@ -221,7 +221,7 @@ error: `skip` may not be used with any other attributes
 error: `skip` may not be used with any other attributes
   --> tests/ui/skip-conficts.fail.rs:8:23
    |
- 8 |             #[builder(skip, $($tt)*)]
+8  |             #[builder(skip, $($tt)*)]
    |                       ^^^^
 ...
 34 | define!(BeforeAttributes, AfterAttributes as (       u32) => attributes()                  );
@@ -243,7 +243,7 @@ error: `skip` may not be used with any other attributes
 error: `skip` may not be used with any other attributes
   --> tests/ui/skip-conficts.fail.rs:8:23
    |
- 8 |             #[builder(skip, $($tt)*)]
+8  |             #[builder(skip, $($tt)*)]
    |                       ^^^^
 ...
 35 | define!(BeforeDoc,        AfterDoc        as (       u32) => doc()                         );

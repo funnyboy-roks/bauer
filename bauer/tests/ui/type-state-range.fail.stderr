@@ -1,7 +1,7 @@
 error[E0599]: the method `build` exists for struct `RangeInclusiveBuilder<RangeInclusive_FieldA_Count<((), ())>>`, but its trait bounds were not satisfied
   --> tests/ui/type-state-range.fail.rs:32:66
    |
- 3 | #[derive(Builder)]
+3  | #[derive(Builder)]
    |          ------- method `build` not found for this struct because it doesn't satisfy `_: RangeInclusive<2, 3>`
 ...
 32 |     let _: RangeInclusive = RangeInclusive::builder().field_a(1).build(); // fail b/c <2
@@ -10,7 +10,7 @@ error[E0599]: the method `build` exists for struct `RangeInclusiveBuilder<RangeI
 note: trait bound `RangeInclusive_FieldA_Count<((), ())>: bauer::state::RangeInclusive<2, 3>` was not satisfied
   --> tests/ui/type-state-range.fail.rs:3:10
    |
- 3 | #[derive(Builder)]
+3  | #[derive(Builder)]
    |          ^^^^^^^ unsatisfied trait bound introduced in this `derive` macro
 note: the trait `bauer::state::RangeInclusive` must be implemented
   --> src/lib.rs
@@ -22,7 +22,7 @@ note: the trait `bauer::state::RangeInclusive` must be implemented
 error[E0599]: the method `build` exists for struct `RangeInclusiveBuilder<RangeInclusive_FieldA_Count<(((((), ()), ()), ()), ())>>`, but its trait bounds were not satisfied
   --> tests/ui/type-state-range.fail.rs:38:10
    |
- 3 |   #[derive(Builder)]
+3  |   #[derive(Builder)]
    |            ------- method `build` not found for this struct because it doesn't satisfy `_: RangeInclusive<2, 3>`
 ...
 33 |       let _: RangeInclusive = RangeInclusive::builder()
@@ -39,7 +39,7 @@ error[E0599]: the method `build` exists for struct `RangeInclusiveBuilder<RangeI
 note: trait bound `RangeInclusive_FieldA_Count<(((((), ()), ()), ()), ())>: bauer::state::RangeInclusive<2, 3>` was not satisfied
   --> tests/ui/type-state-range.fail.rs:3:10
    |
- 3 | #[derive(Builder)]
+3  | #[derive(Builder)]
    |          ^^^^^^^ unsatisfied trait bound introduced in this `derive` macro
 note: the trait `bauer::state::RangeInclusive` must be implemented
   --> src/lib.rs
