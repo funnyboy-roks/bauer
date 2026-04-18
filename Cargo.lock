@@ -13,7 +13,7 @@ dependencies = [
 
 [[package]]
 name = "bauer"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "attribute",
  "bauer-macros",
@@ -22,7 +22,7 @@ dependencies = [
 
 [[package]]
 name = "bauer-macros"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "attribute",
  "convert_case",
