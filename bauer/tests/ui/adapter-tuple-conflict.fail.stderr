@@ -3,3 +3,9 @@ error: `tuple` cannot be added with `adapter`
   |
 5 |     #[builder(adapter(|x: u32, y: u32| (x + 1, y + 1)), tuple)]
   |                                                         ^^^^^
+
+error: `tuple` may only be used on fields that are tuples
+ --> tests/ui/adapter-tuple-conflict.fail.rs:7:15
+  |
+7 |     #[builder(tuple, adapter(|x: u32, y: u32| (x + 1, y + 1)))]
+  |               ^^^^^
