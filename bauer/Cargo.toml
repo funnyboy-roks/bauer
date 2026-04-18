@@ -2,9 +2,9 @@
 name = "bauer"
 version.workspace = true
 edition.workspace = true
-description = "A derive macro for automatically generating the builder pattern"
+description = "A derive macro for automatically generating builders"
 categories = ["rust-patterns", "development-tools", "data-structures"]
-keywords = ["builder", "constructor", "derive-macro", "type-state", "macro"]
+keywords = ["builder", "constructor", "derive-macro", "type-state", "typestate"]
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
