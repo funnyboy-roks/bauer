@@ -889,6 +889,7 @@ pub use bauer_macros::Builder;
 #[doc(hidden)]
 pub mod __private;
 
+#[deprecated = "This module should not be used directly"]
 pub mod state {
     use crate::__private;
 
@@ -923,5 +924,6 @@ pub mod state {
     ///
     /// This trait should never be user-implemented (hence the `Sealed`).  If you receive an error
     /// about this, you likely have provided the wrong number of repeat arguments to a builder.
+    #[deprecated = "This trait should not be implemented by hand"]
     pub trait AtLeast<const LOW: usize>: __private::sealed::Sealed {}
 }
