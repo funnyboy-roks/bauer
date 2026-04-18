@@ -1,0 +1,131 @@
+error: Unknown attribute 'asdf'.  Valid attribute are: 'kind, prefix, suffix, visibility, crate, const, attributes, doc, build_fn, builder_fn, error, on'
+  --> tests/ui/multiple-errors.fail.rs:9:54
+   |
+9  |             #[builder(kind = $kind, prefix = "set_", asdf)]
+   |                                                      ^^^^
+...
+45 | tests!("type-state" in mod type_state);
+   | -------------------------------------- in this macro invocation
+   |
+   = note: this error originates in the macro `tests` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: `repeat` cannot be added with `default`
+  --> tests/ui/multiple-errors.fail.rs:11:43
+   |
+11 |                 #[builder(default = "42", repeat = u32)]
+   |                                           ^^^^^^
+...
+45 | tests!("type-state" in mod type_state);
+   | -------------------------------------- in this macro invocation
+   |
+   = note: this error originates in the macro `tests` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: Unknown attribute 'foo'.  Valid attribute are: 'default, into, repeat, repeat_n, rename, skip_prefix, skip_suffix, tuple, adapter, attributes, doc, collector, skip'
+  --> tests/ui/multiple-errors.fail.rs:12:27
+   |
+12 |                 #[builder(foo)]
+   |                           ^^^
+...
+45 | tests!("type-state" in mod type_state);
+   | -------------------------------------- in this macro invocation
+   |
+   = note: this error originates in the macro `tests` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: Inner type must be specified to repeat on type without generics
+  --> tests/ui/multiple-errors.fail.rs:16:33
+   |
+16 |                 #[builder(into, repeat)]
+   |                                 ^^^^^^
+...
+45 | tests!("type-state" in mod type_state);
+   | -------------------------------------- in this macro invocation
+   |
+   = note: this error originates in the macro `tests` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: Unknown attribute 'asdf'.  Valid attribute are: 'kind, prefix, suffix, visibility, crate, const, attributes, doc, build_fn, builder_fn, error, on'
+  --> tests/ui/multiple-errors.fail.rs:9:54
+   |
+9  |             #[builder(kind = $kind, prefix = "set_", asdf)]
+   |                                                      ^^^^
+...
+44 | tests!("owned" in mod owned unwrap);
+   | ----------------------------------- in this macro invocation
+   |
+   = note: this error originates in the macro `tests` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: `repeat` cannot be added with `default`
+  --> tests/ui/multiple-errors.fail.rs:11:43
+   |
+11 |                 #[builder(default = "42", repeat = u32)]
+   |                                           ^^^^^^
+...
+44 | tests!("owned" in mod owned unwrap);
+   | ----------------------------------- in this macro invocation
+   |
+   = note: this error originates in the macro `tests` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: Unknown attribute 'foo'.  Valid attribute are: 'default, into, repeat, repeat_n, rename, skip_prefix, skip_suffix, tuple, adapter, attributes, doc, collector, skip'
+  --> tests/ui/multiple-errors.fail.rs:12:27
+   |
+12 |                 #[builder(foo)]
+   |                           ^^^
+...
+44 | tests!("owned" in mod owned unwrap);
+   | ----------------------------------- in this macro invocation
+   |
+   = note: this error originates in the macro `tests` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: Inner type must be specified to repeat on type without generics
+  --> tests/ui/multiple-errors.fail.rs:16:33
+   |
+16 |                 #[builder(into, repeat)]
+   |                                 ^^^^^^
+...
+44 | tests!("owned" in mod owned unwrap);
+   | ----------------------------------- in this macro invocation
+   |
+   = note: this error originates in the macro `tests` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: Unknown attribute 'asdf'.  Valid attribute are: 'kind, prefix, suffix, visibility, crate, const, attributes, doc, build_fn, builder_fn, error, on'
+  --> tests/ui/multiple-errors.fail.rs:9:54
+   |
+9  |             #[builder(kind = $kind, prefix = "set_", asdf)]
+   |                                                      ^^^^
+...
+43 | tests!("borrowed" in mod borrowed unwrap);
+   | ----------------------------------------- in this macro invocation
+   |
+   = note: this error originates in the macro `tests` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: `repeat` cannot be added with `default`
+  --> tests/ui/multiple-errors.fail.rs:11:43
+   |
+11 |                 #[builder(default = "42", repeat = u32)]
+   |                                           ^^^^^^
+...
+43 | tests!("borrowed" in mod borrowed unwrap);
+   | ----------------------------------------- in this macro invocation
+   |
+   = note: this error originates in the macro `tests` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: Unknown attribute 'foo'.  Valid attribute are: 'default, into, repeat, repeat_n, rename, skip_prefix, skip_suffix, tuple, adapter, attributes, doc, collector, skip'
+  --> tests/ui/multiple-errors.fail.rs:12:27
+   |
+12 |                 #[builder(foo)]
+   |                           ^^^
+...
+43 | tests!("borrowed" in mod borrowed unwrap);
+   | ----------------------------------------- in this macro invocation
+   |
+   = note: this error originates in the macro `tests` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: Inner type must be specified to repeat on type without generics
+  --> tests/ui/multiple-errors.fail.rs:16:33
+   |
+16 |                 #[builder(into, repeat)]
+   |                                 ^^^^^^
+...
+43 | tests!("borrowed" in mod borrowed unwrap);
+   | ----------------------------------------- in this macro invocation
+   |
+   = note: this error originates in the macro `tests` (in Nightly builds, run with -Z macro-backtrace for more info)

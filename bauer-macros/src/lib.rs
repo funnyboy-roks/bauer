@@ -105,7 +105,7 @@ fn failed_builder(
 
         #(#builder_attributes)*
         #[must_use = "The builder doesn't construct its type until `.build()` is called"]
-        #builder_vis enum #builder #impl_generics #where_clause {}
+        #builder_vis struct #builder #impl_generics #where_clause {}
 
         impl #impl_generics #builder #ty_generics #where_clause {
             #functions
