@@ -10,6 +10,9 @@ license.workspace = true
 repository.workspace = true
 readme = "../README.md"
 
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(using_msrv)'] }
+
 [features]
 unlimited_range = ["bauer-macros/unlimited_range"]
 
@@ -19,3 +22,6 @@ bauer-macros.workspace = true
 [dev-dependencies]
 trybuild = "1.0.114"
 attribute = { path = "../testing/attribute" }
+
+[build-dependencies]
+version_check = "0.9.5"
