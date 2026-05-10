@@ -4,10 +4,8 @@ use bauer::Builder;
 
 #[derive(Debug, Builder)]
 #[builder(kind = "type-state", prefix = "set_")]
-#[builder(on(bool => default = "true"))]
-#[builder(on(_ => into))]
 pub struct Foo {
-    #[builder(default = "42u32")]
+    #[builder(default = "42")]
     field_a: u32,
     field_b: bool,
     #[builder(into)]

@@ -299,15 +299,53 @@ impl BuilderField {
         ))
     }
 
+    fn wrap_with_signature(
+        &self,
+        builder_attr: &BuilderAttr,
+        allow_unused: bool,
+        body: impl ToTokens,
+    ) -> TokenStream {
+        let ty = self.arg_ty();
+        let fn_ident = self.function_ident(builder_attr);
+        let (args, _) = self.attr.to_args_and_value(ty, &self.ident);
+        let self_param = builder_attr.self_param();
+        let return_type = builder_attr.return_type();
+        let builder_vis = &builder_attr.vis;
+
+        let attributes = &self.attr.attributes;
+        let konst = builder_attr.konst_kw();
+
+        let unused = if allow_unused {
+            quote! { #[allow(unused_variables)] }
+        } else {
+            quote! {}
+        };
+
+        quote! {
+            #(#attributes)*
+            #[must_use = "The builder doesn't construct its type until `.build()` is called"]
+            #unused
+            #builder_vis #konst fn #fn_ident(#self_param, #args) -> #return_type {
+                #body
+            }
+        }
+    }
+
+    pub(crate) fn fail_fn(&self, builder_attr: &BuilderAttr) -> TokenStream {
+        self.wrap_with_signature(
+            builder_attr,
+            true,
+            quote! {
+                panic!("Invalid Builder")
+            },
+        )
+    }
+
     pub(crate) fn function(&self, builder_attr: &BuilderAttr, inner: &Ident) -> TokenStream {
         let field_name = &self.ident;
 
         let ty = self.arg_ty();
-        let fn_ident = self.function_ident(builder_attr);
-        let (args, value) = self.attr.to_args_and_value(ty, field_name);
-        let self_param = builder_attr.self_param();
-        let return_type = builder_attr.return_type();
-        let builder_vis = &builder_attr.vis;
+        let (_, value) = self.attr.to_args_and_value(ty, field_name);
 
         let field_i = self.tuple_index();
 
@@ -317,21 +355,18 @@ impl BuilderField {
             quote! { self.#inner.#field_i = Some(value) }
         };
 
-        let attributes = &self.attr.attributes;
-        let konst = builder_attr.konst_kw();
-
-        quote! {
-            #(#attributes)*
-            #[must_use = "The builder doesn't construct its type until `.build()` is called"]
-            #builder_vis #konst fn #fn_ident(#self_param, #args) -> #return_type {
+        self.wrap_with_signature(
+            builder_attr,
+            false,
+            quote! {
                 let value: #ty = #value;
                 #[allow(deprecated)] // #inner is set to deprecated
                 {
                     #setter;
                 }
                 self
-            }
-        }
+            },
+        )
     }
 
     pub fn parse(
@@ -339,7 +374,8 @@ impl BuilderField {
         builder_attr: &BuilderAttr,
         struct_name: &Ident,
         tuple_index: &mut usize,
-    ) -> syn::Result<Self> {
+        errors: &mut Vec<syn::Error>,
+    ) -> Self {
         let ident = value.ident.as_ref().expect("We only support named fields");
 
         let (ty, wrapped_option) = if let Some(ty) = get_single_generic(&value.ty, Some("Option")) {
@@ -352,19 +388,33 @@ impl BuilderField {
             let mut out = FieldAttr::default();
 
             for on in &builder_attr.on {
-                if let Some(replaced) = on.apply(&value.ty)? {
-                    syn::parse::Parser::parse2(
-                        |input: ParseStream| out.parse(input, builder_attr, value, wrapped_option),
-                        replaced,
-                    )?;
+                match on.apply(&value.ty) {
+                    Ok(Some(replaced)) => {
+                        match syn::parse::Parser::parse2(
+                            |input: ParseStream| {
+                                out.parse(input, builder_attr, value, wrapped_option)
+                            },
+                            replaced,
+                        ) {
+                            Ok(()) => {}
+                            Err(e) => errors.push(e),
+                        }
+                    }
+                    Ok(None) => {}
+                    Err(e) => errors.push(e),
                 }
             }
 
             for attr in value.attrs.iter().filter(|a| a.path().is_ident("builder")) {
-                attr.parse_args_with(|input: ParseStream| {
+                let res = attr.parse_args_with(|input: ParseStream| {
                     out.parse(input, builder_attr, value, wrapped_option)
-                })?;
+                });
+
+                if let Err(e) = res {
+                    errors.push(e);
+                }
             }
+
             out
         };
 
@@ -384,7 +434,7 @@ impl BuilderField {
             *tuple_index += 1;
         }
 
-        Ok(BuilderField {
+        BuilderField {
             ident: ident.clone(),
             ty: ty.clone(),
             missing_err: if attr.default.is_none() && attr.repeat.is_none() && !wrapped_option {
@@ -404,7 +454,7 @@ impl BuilderField {
             wrapped_option,
             idents: FieldIdents::new(struct_name, ident),
             tuple_index: this_tuple_index,
-        })
+        }
     }
 }
 
@@ -951,7 +1001,7 @@ impl FieldAttr {
                         (s, Len::None, false)
                     } else {
                         let Some(inner) = get_single_generic(&field.ty, None) else {
-                            bail!(field.ty.span() => "Inner type must be specified to repeat on type without generics");
+                            bail!(ident.span() => "Inner type must be specified to repeat on type without generics");
                         };
 
                         if let Type::Array(array) = &field.ty {
