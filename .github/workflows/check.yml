@@ -92,7 +92,7 @@ jobs:
       - name: Install cargo-binstall 
         uses: cargo-bins/cargo-binstall@main
       - name: Install cargo-rdme
-        run: cargo-binstall cargo-rdme
+        run: cargo-binstall cargo-rdme@1.5.1
       - name: update readme
         run: ./gen-readme.sh
       - name: check readme
