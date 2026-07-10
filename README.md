@@ -77,7 +77,7 @@ a `#[builder(..)]` attribute.  For a more detailed description and examples, che
 | [`crate`]                                    | Override the name of the crate when expanding macros (defaults to `bauer`)                                  | `prefix = "set_"` or `suffix = "_field"`     |
 | [`attribute`/`attributes`]                   | Set attribute(s) on the generated builder struct                                                            | `attribute(#[foo])`                          |
 | [`doc`/`docs`]                               | Set documentation items on the generated builder struct                                                     | `doc(<doc strings>)`                         |
-| [`build_fn`]                                 | Set details about the build function (`attributes`, `doc`, `rename`)                                        | `build_fn(...)`                              |
+| [`build_fn`]                                 | Set details about the build function (`attributes`, `doc`, `rename`, `map`)                                 | `build_fn(...)`                              |
 | [`builder_fn`]                               | Set details about the builder function added to the struct (`attributes`, `doc`, `rename`)                  | `builder_fn(...)`                            |
 | [`error`]                                    | Set details about the generated error enum (`attributes`, `doc`, `rename`, `force`)                         | `error(...)`                                 |
 | [`on`]                                       | Apply field attributes to fields that match a specific type pattern                                         | `on(<type> => <attributes ...>)`             |
