@@ -181,27 +181,48 @@ fn build_fn(
 
     let build_fn_attributes = &builder_attr.build_fn.attributes;
     let build_fn_name = &builder_attr.build_fn.name;
-    let (build_return, build_return_value, from) = if builder_attr.error.force {
+
+    let (ret_ty, ret_val) = if let Some((closure, ty)) = &builder_attr.build_fn.mapper {
         (
-            quote! { ::core::result::Result<#ident #default_ty_generics, ::core::convert::Infallible> },
-            quote! { Ok(val) },
-            quote! {
-                let Ok(built) = builder.#build_fn_name();
-                built
-            },
+            ty.to_token_stream(),
+            quote! {{
+                let mapper: fn(#ident #default_ty_generics) -> #ty = (#closure);
+                (mapper)(val)
+            }},
         )
     } else {
-        (
-            quote! { #ident #default_ty_generics },
-            quote! { val },
-            quote! { builder.#build_fn_name() },
-        )
+        (quote! { #ident #default_ty_generics }, quote! { val })
     };
+
+    let (ret_ty, ret_val, mut from) = if builder_attr.error.force {
+        (
+            quote! { ::core::result::Result<#ret_ty, ::core::convert::Infallible> },
+            quote! { Ok(#ret_val) },
+            Some(quote! {
+                let Ok(built) = builder.#build_fn_name();
+                built
+            }),
+        )
+    } else {
+        (ret_ty, ret_val, Some(quote! { builder.#build_fn_name() }))
+    };
+
+    if builder_attr.build_fn.mapper.is_some() {
+        from = None;
+    }
+
+    let from = from.map(|from| quote! {
+        impl #impl_generics ::core::convert::From<#builder #ty_generics> for #ident #default_ty_generics #builder_where {
+            fn from(builder: #builder #ty_generics) -> Self  {
+                #from
+            }
+        }
+    });
 
     quote! {
         impl #impl_generics #builder #ty_generics #builder_where {
             #(#build_fn_attributes)*
-            #builder_vis #konst fn #build_fn_name(self) -> #build_return {
+            #builder_vis #konst fn #build_fn_name(self) -> #ret_ty {
                 #[allow(deprecated)] // #inner is set to deprecated
                 let val = {
                     #set_not_skipped_fields
@@ -210,15 +231,11 @@ fn build_fn(
                         #(#names),*
                     }
                 };
-                #build_return_value
+                #ret_val
             }
         }
 
-        impl #impl_generics ::core::convert::From<#builder #ty_generics> for #ident #default_ty_generics #builder_where {
-            fn from(builder: #builder #ty_generics) -> Self  {
-                #from
-            }
-        }
+        #from
     }
 }
 

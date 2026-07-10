@@ -1,6 +1,8 @@
 use quote::format_ident;
 use strum::{AsRefStr, IntoStaticStr, VariantArray};
-use syn::{Ident, LitStr, Token, ext::IdentExt, parse::ParseStream};
+use syn::{
+    ExprClosure, Ident, LitStr, Token, Type, ext::IdentExt, parse::ParseStream, spanned::Spanned,
+};
 
 use crate::util::parse::{parethesised_or_braced, parse_attributes, parse_docs};
 
@@ -20,6 +22,7 @@ enum Attribute {
     Attributes,
     Doc,
     Rename,
+    Map,
 }
 
 impl Attribute {
@@ -59,22 +62,28 @@ impl Attribute {
 
 #[derive(Debug, Clone)]
 pub struct BuildFnAttr {
+    pub is_builder: bool,
     pub attributes: Vec<syn::Attribute>,
     pub name: Ident,
+    pub mapper: Option<(ExprClosure, Type)>,
 }
 
 impl BuildFnAttr {
     pub fn default_build() -> Self {
         Self {
+            is_builder: false,
             attributes: Default::default(),
             name: format_ident!("build"),
+            mapper: None,
         }
     }
 
     pub fn default_builder() -> Self {
         Self {
+            is_builder: true,
             attributes: Default::default(),
             name: format_ident!("builder"),
+            mapper: None,
         }
     }
 }
@@ -110,6 +119,27 @@ impl BuildFnAttr {
 
                     rename_set = true;
                     self.name = s.parse()?;
+                }
+                Attribute::Map => {
+                    if self.is_builder {
+                        bail!(ident.span() => "`map` may not be specified on builder_fn");
+                    }
+
+                    let _: Token![=] = input.parse()?;
+                    let closure: ExprClosure = input.parse()?;
+
+                    if closure.inputs.len() != 1 {
+                        bail!(closure.inputs.span() => "`map` closure must take one input");
+                    }
+
+                    match closure.output {
+                        syn::ReturnType::Default => {
+                            bail!(closure.output.span() => "`map` closure must specify a return type")
+                        }
+                        syn::ReturnType::Type(_, ref ty) => {
+                            self.mapper = Some((closure.clone(), (**ty).clone()))
+                        }
+                    }
                 }
             }
 

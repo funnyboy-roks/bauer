@@ -446,14 +446,20 @@ pub fn builder(input: TokenStream) -> TokenStream {
 
     let konst = builder_attr.konst_kw();
 
-    let (ret_ty, ret_val) = if build_err_variants.is_empty() && !builder_attr.error.force {
-        (quote! { #ident #ty_generics }, quote! { ret })
-    } else {
-        (
-            quote! { ::core::result::Result<#ident #ty_generics, #build_err> },
-            quote! { Ok(ret) },
-        )
-    };
+    let (mut ret_ty, mut ret_val) = (quote! { #ident #ty_generics }, quote! { ret });
+
+    if let Some((closure, ty)) = &builder_attr.build_fn.mapper {
+        ret_ty = ty.to_token_stream();
+        ret_val = quote! {{
+            let mapper: fn(#ident #ty_generics) -> #ty = (#closure);
+            (mapper)(#ret_val)
+        }};
+    }
+
+    if !build_err_variants.is_empty() || builder_attr.error.force {
+        ret_ty = quote! { ::core::result::Result<#ret_ty, #build_err> };
+        ret_val = quote! { Ok(#ret_val) };
+    }
 
     let build_fn_attributes = &builder_attr.build_fn.attributes;
     let build_fn_name = &builder_attr.build_fn.name;
@@ -498,12 +504,16 @@ pub fn builder(input: TokenStream) -> TokenStream {
         }
     };
 
-    let into_impl = into_impl(
-        &builder_attr,
-        &input,
-        &builder,
-        (!build_err_variants.is_empty() || builder_attr.error.force).then_some(build_err),
-    );
+    let into_impl = if builder_attr.build_fn.mapper.is_some() {
+        quote! {} // can't do into if the build_fn is a mapper
+    } else {
+        into_impl(
+            &builder_attr,
+            &input,
+            &builder,
+            (!build_err_variants.is_empty() || builder_attr.error.force).then_some(build_err),
+        )
+    };
 
     let builder_attributes = &builder_attr.attributes;
 
