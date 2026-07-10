@@ -1,0 +1,17 @@
+error: `map` closure must specify a return type
+ --> tests/ui/map-closure-syntax.fail.rs:5:11
+  |
+5 |     map = |x| 0 // no return type
+  |           ^
+
+error: `map` closure must take one input
+  --> tests/ui/map-closure-syntax.fail.rs:11:11
+   |
+11 |     map = |x, y| -> u32 { 0 } // multiple arguments
+   |           ^
+
+error: `map` closure must take one input
+  --> tests/ui/map-closure-syntax.fail.rs:17:11
+   |
+17 |     map = || -> u32 { 0 } // no arguments
+   |           ^

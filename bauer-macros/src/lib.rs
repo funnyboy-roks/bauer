@@ -448,12 +448,14 @@ pub fn builder(input: TokenStream) -> TokenStream {
 
     let (mut ret_ty, mut ret_val) = (quote! { #ident #ty_generics }, quote! { ret });
 
-    if let Some((closure, ty)) = &builder_attr.build_fn.mapper {
-        ret_ty = ty.to_token_stream();
+    if let Some((param, ty, body)) = &builder_attr.build_fn.mapper {
         ret_val = quote! {{
-            let mapper: fn(#ident #ty_generics) -> #ty = (#closure);
-            (mapper)(#ret_val)
+            #konst fn __private_mapper(#param: #ret_ty) -> #ty {
+                #body
+            }
+            __private_mapper(#ret_val)
         }};
+        ret_ty = ty.to_token_stream();
     }
 
     if !build_err_variants.is_empty() || builder_attr.error.force {

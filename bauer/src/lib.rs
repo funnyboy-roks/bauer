@@ -68,7 +68,7 @@
 //! | [`crate`]                                    | Override the name of the crate when expanding macros (defaults to `bauer`)                                  | `prefix = "set_"` or `suffix = "_field"`     |
 //! | [`attribute`/`attributes`]                   | Set attribute(s) on the generated builder struct                                                            | `attribute(#[foo])`                          |
 //! | [`doc`/`docs`]                               | Set documentation items on the generated builder struct                                                     | `doc(<doc strings>)`                         |
-//! | [`build_fn`]                                 | Set details about the build function (`attributes`, `doc`, `rename`)                                        | `build_fn(...)`                              |
+//! | [`build_fn`]                                 | Set details about the build function (`attributes`, `doc`, `rename`, `map`)                                 | `build_fn(...)`                              |
 //! | [`builder_fn`]                               | Set details about the builder function added to the struct (`attributes`, `doc`, `rename`)                  | `builder_fn(...)`                            |
 //! | [`error`]                                    | Set details about the generated error enum (`attributes`, `doc`, `rename`, `force`)                         | `error(...)`                                 |
 //! | [`on`]                                       | Apply field attributes to fields that match a specific type pattern                                         | `on(<type> => <attributes ...>)`             |
@@ -368,6 +368,7 @@
 ///   [`attributes`](#attributes))
 /// - `doc` - Add documentation to the generated build function (see [`doc`](#doc))
 /// - `rename = <name>` - Rename the build function from the default of `build`
+/// - `map = |<var>| -> <type> { <expression> }` - Map the built value into something else in the build function
 ///
 /// The contents may be wrapped with either `()` or `{}` and attributes may optionally be separated
 /// using commas.
@@ -395,6 +396,43 @@
 /// let foo: Foo = Foo::builder()
 ///     .field(3)
 ///     .finish()?;
+/// # Ok::<_, Box<dyn std::error::Error>>(())
+/// ```
+///
+/// ### `map`
+///
+/// The `map` attribute can serve a number of purposes:
+///
+/// - Create a builder for a type from another crate
+/// - Run a bit of code before after the struct has been built, but before the builder returns
+/// - Make a builder that acts as a function (see example)
+///
+/// ```
+/// # use bauer_macros::Builder;
+/// fn my_function(x: u32, y: u32, z: u32) -> u32 {
+///     (x + y + z) / 3
+/// }
+///
+/// #[derive(Builder)]
+/// #[builder(
+///     build_fn {
+///         rename = "call",
+///         map = |f| -> u32 { my_function(f.x, f.y, f.z) }
+///     },
+/// )]
+/// pub struct Function {
+///     x: u32,
+///     y: u32,
+///     z: u32,
+/// }
+///
+/// let avg: u32 = Function::builder()
+///     .x(42)
+///     .y(69)
+///     .z(1337)
+///     .call()?;
+///
+/// assert_eq!(avg, 482);
 /// # Ok::<_, Box<dyn std::error::Error>>(())
 /// ```
 ///
