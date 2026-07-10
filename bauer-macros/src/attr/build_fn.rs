@@ -129,12 +129,12 @@ impl BuildFnAttr {
                     let closure: ExprClosure = input.parse()?;
 
                     if closure.inputs.len() != 1 {
-                        bail!(closure.inputs.span() => "`map` closure must take one input");
+                        bail!(closure.span() => "`map` closure must take one input");
                     }
 
                     match closure.output {
                         syn::ReturnType::Default => {
-                            bail!(closure.output.span() => "`map` closure must specify a return type")
+                            bail!(closure.span() => "`map` closure must specify a return type")
                         }
                         syn::ReturnType::Type(_, ref ty) => {
                             self.mapper = Some((closure.clone(), (**ty).clone()))
