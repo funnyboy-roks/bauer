@@ -182,29 +182,28 @@ fn build_fn(
     let build_fn_attributes = &builder_attr.build_fn.attributes;
     let build_fn_name = &builder_attr.build_fn.name;
 
-    let (ret_ty, ret_val) = if let Some((closure, ty)) = &builder_attr.build_fn.mapper {
-        (
-            ty.to_token_stream(),
-            quote! {{
-                let mapper: fn(#ident #default_ty_generics) -> #ty = (#closure);
-                (mapper)(val)
-            }},
-        )
-    } else {
-        (quote! { #ident #default_ty_generics }, quote! { val })
+    let mut ret_ty = quote! { #ident #default_ty_generics };
+    let mut ret_val = quote! { val };
+
+    if let Some((param, ty, body)) = &builder_attr.build_fn.mapper {
+        ret_val = quote! {
+            #konst fn __private_mapper(#param: #ret_ty) -> #ty {
+                #body
+            }
+            __private_mapper(val)
+        };
+        ret_ty = ty.to_token_stream();
     };
 
-    let (ret_ty, ret_val, mut from) = if builder_attr.error.force {
-        (
-            quote! { ::core::result::Result<#ret_ty, ::core::convert::Infallible> },
-            quote! { Ok(#ret_val) },
-            Some(quote! {
-                let Ok(built) = builder.#build_fn_name();
-                built
-            }),
-        )
+    let mut from = if builder_attr.error.force {
+        ret_ty = quote! { ::core::result::Result<#ret_ty, ::core::convert::Infallible> };
+        ret_val = quote! { Ok(#ret_val) };
+        Some(quote! {
+            let Ok(built) = builder.#build_fn_name();
+            built
+        })
     } else {
-        (ret_ty, ret_val, Some(quote! { builder.#build_fn_name() }))
+        Some(quote! { builder.#build_fn_name() })
     };
 
     if builder_attr.build_fn.mapper.is_some() {

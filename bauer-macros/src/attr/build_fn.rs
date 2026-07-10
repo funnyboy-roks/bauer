@@ -1,7 +1,8 @@
 use quote::format_ident;
 use strum::{AsRefStr, IntoStaticStr, VariantArray};
 use syn::{
-    ExprClosure, Ident, LitStr, Token, Type, ext::IdentExt, parse::ParseStream, spanned::Spanned,
+    Expr, ExprClosure, Ident, LitStr, Token, Type, ext::IdentExt, parse::ParseStream,
+    spanned::Spanned,
 };
 
 use crate::util::parse::{parethesised_or_braced, parse_attributes, parse_docs};
@@ -65,7 +66,7 @@ pub struct BuildFnAttr {
     pub is_builder: bool,
     pub attributes: Vec<syn::Attribute>,
     pub name: Ident,
-    pub mapper: Option<(ExprClosure, Type)>,
+    pub mapper: Option<(Ident, Type, Expr)>,
 }
 
 impl BuildFnAttr {
@@ -131,13 +132,17 @@ impl BuildFnAttr {
                     if closure.inputs.len() != 1 {
                         bail!(closure.span() => "`map` closure must take one input");
                     }
+                    let ident = match &closure.inputs[0] {
+                        syn::Pat::Ident(p) => p.ident.clone(),
+                        i => bail!(i.span() => "`map` input must be an identifier"),
+                    };
 
                     match closure.output {
                         syn::ReturnType::Default => {
                             bail!(closure.span() => "`map` closure must specify a return type")
                         }
-                        syn::ReturnType::Type(_, ref ty) => {
-                            self.mapper = Some((closure.clone(), (**ty).clone()))
+                        syn::ReturnType::Type(_, ty) => {
+                            self.mapper = Some((ident, *ty, *closure.body))
                         }
                     }
                 }
