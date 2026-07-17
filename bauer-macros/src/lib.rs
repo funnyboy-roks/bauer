@@ -451,6 +451,7 @@ pub fn builder(input: TokenStream) -> TokenStream {
     if let Some((param, ty, body)) = &builder_attr.build_fn.mapper {
         ret_val = quote! {{
             #konst fn __private_mapper(#param: #ret_ty) -> #ty {
+                #[allow(clippy::unused_braces)]
                 #body
             }
             __private_mapper(#ret_val)
