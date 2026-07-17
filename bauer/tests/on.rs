@@ -1,4 +1,5 @@
 #![allow(dead_code)]
+#![allow(clippy::disallowed_names)]
 
 macro_rules! tests {
     ($kind: literal in mod $module: ident $($unwrap: ident)?) => {

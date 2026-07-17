@@ -17,7 +17,7 @@ impl<'a, T> CustomImplGenerics<'a, T> {
 }
 
 // From https://docs.rs/syn/latest/src/syn/generics.rs.html#1199-1249
-impl<'a, T> ToTokens for CustomImplGenerics<'a, T>
+impl<T> ToTokens for CustomImplGenerics<'_, T>
 where
     T: ToTokens,
 {
@@ -96,7 +96,7 @@ impl<'a, T> CustomTypeGenerics<'a, T> {
     }
 }
 
-impl<'a, T> ToTokens for CustomTypeGenerics<'a, T>
+impl<T> ToTokens for CustomTypeGenerics<'_, T>
 where
     T: ToTokens,
 {

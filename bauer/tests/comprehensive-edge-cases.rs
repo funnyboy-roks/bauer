@@ -498,7 +498,7 @@ macro_rules! tests {
                     timeout: Option<std::time::Duration>,
                     #[builder(default = "1")]
                     max_concurrent: usize,
-                    error_callback: Option<Box<dyn Fn(String) -> () + Send + Sync>>,
+                    error_callback: Option<Box<dyn Fn(String) + Send + Sync>>,
                 }
 
                 struct MockProcessor;
