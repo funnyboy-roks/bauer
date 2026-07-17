@@ -1,7 +1,14 @@
+#![allow(clippy::disallowed_names)]
+
+use std::sync::Arc;
+
 use bauer::Builder;
 
 #[derive(Debug, Builder, PartialEq)]
 #[builder(kind = "borrowed")]
+#[builder(build_fn {
+    map = |foo| -> Arc<Foo> { Arc::new(foo) }
+})]
 pub struct Foo {
     pub field_a: u32,
     #[builder(default)]
@@ -27,7 +34,7 @@ pub struct Foo {
 }
 
 fn main() {
-    let x = Foo::builder()
+    let x: Arc<_> = Foo::builder()
         .field_a(5)
         .field_f("world")
         .field_g(0)
@@ -45,8 +52,8 @@ fn main() {
     dbg!(&x);
 
     assert_eq!(
-        x,
-        Foo {
+        &*x,
+        &Foo {
             field_a: 5,
             field_b: 0,
             field_c: 42,
