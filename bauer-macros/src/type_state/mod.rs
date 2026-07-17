@@ -187,7 +187,7 @@ fn build_fn(
 
     if let Some((param, ty, body)) = &builder_attr.build_fn.mapper {
         ret_val = quote! {
-            #[allow(clippy::unused_braces)]
+            #[allow(unused_braces)]
             #konst fn __private_mapper(#param: #ret_ty) -> #ty {
                 #body
             }
