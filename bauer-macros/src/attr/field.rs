@@ -1084,7 +1084,11 @@ impl FieldAttr {
                         bail!(ident.span() => "`tuple` cannot be added with `adapter`");
                     }
 
-                    let tuple = match &field.ty {
+                    // Peel a single Option layer so `Option<(T, U)>` is treated as a tuple field.
+                    let effective_ty =
+                        get_single_generic(&field.ty, Some("Option")).unwrap_or(&field.ty);
+
+                    let tuple = match effective_ty {
                         Type::Tuple(tuple) => tuple,
                         _ => match &self.repeat {
                             Some(Repeat {
