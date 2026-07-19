@@ -73,8 +73,8 @@ a `#[builder(..)]` attribute.  For a more detailed description and examples, che
 | [`kind`]                                     | Set the sub-patten to use for this builder                                                                  | `kind = "borrowed"` or `kind = "type-state"` |
 | [`const`]                                    | Make this builder work at compile-time -- some limitations are added, but most features continue working    | `const`                                      |
 | [`prefix`/`suffix`]                          | Add a prefix/suffix to all field functions created for this builder                                         | `prefix = "set_"` or `suffix = "_field"`     |
-| [`visibility`]                               | Change the visibility of the created builder (defaults to the same visibility as the struct)                | `prefix = "set_"` or `suffix = "_field"`     |
-| [`crate`]                                    | Override the name of the crate when expanding macros (defaults to `bauer`)                                  | `prefix = "set_"` or `suffix = "_field"`     |
+| [`visibility`]                               | Change the visibility of the created builder (defaults to the same visibility as the struct)                | `visibility = pub(crate)`                    |
+| [`crate`]                                    | Override the name of the crate when expanding macros (defaults to `bauer`)                                  | `crate = bauer_renamed`                      |
 | [`attribute`/`attributes`]                   | Set attribute(s) on the generated builder struct                                                            | `attribute(#[foo])`                          |
 | [`doc`/`docs`]                               | Set documentation items on the generated builder struct                                                     | `doc(<doc strings>)`                         |
 | [`build_fn`]                                 | Set details about the build function (`attributes`, `doc`, `rename`, `map`)                                 | `build_fn(...)`                              |
@@ -103,6 +103,7 @@ All of the attributes that may be applied to fields are listed below.  These go 
 |   Attribute                            | Description                                                                                                 | Usage                              |
 | -------------------------------------- | ----------------------------------------------------------------------------------------------------------- | ---------------------------------- |
 | [`skip`]                               | Skip this field in the builder.  No other attributes may be specified when this is used.                    | `skip` or `skip = <value>`         |
+| [`visibility`]                         | Change visibility of the generated function (defaults to the same visibility as the builder)                | `visibility = pub(crate)`          |
 | [`default`]                            | Specify a default value or use [`Default`]                                                                  | `default` or `default = <value>`   |
 | [`repeat`]                             | Allow repating call to add items to a structure                                                             | `repeat` or `repeat = <type>`      |
 | [`repeat_n`]                           | Contorl the number times a `repeat` field is allowed to be set.  This controls the length of the final data | `repeat_n = 1..` or `repeat_n = 4` |
@@ -116,6 +117,7 @@ All of the attributes that may be applied to fields are listed below.  These go 
 | [`doc`/`docs`][field_doc]              | Set documentation items on the function generated for this field                                            | `doc(<doc strings>)`               |
 
 [`skip`]: https://docs.rs/bauer/latest/bauer/derive.Builder.html#skip
+[`visibility`]: https://docs.rs/bauer/latest/bauer/derive.Builder.html#visibility-1
 [`default`]: https://docs.rs/bauer/latest/bauer/derive.Builder.html#default
 [`repeat`]: https://docs.rs/bauer/latest/bauer/derive.Builder.html#repeat
 [`repeat_n`]: https://docs.rs/bauer/latest/bauer/derive.Builder.html#repeat_n
