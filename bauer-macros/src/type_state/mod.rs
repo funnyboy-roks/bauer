@@ -26,7 +26,6 @@ fn build_fn(
     inner: &Ident,
 ) -> TokenStream {
     let ident = &input.ident;
-    let builder_vis = &builder_attr.vis;
     let private_module = builder_attr.private_module();
 
     let names = fields.iter().map(|f| &f.ident);
@@ -219,10 +218,12 @@ fn build_fn(
         }
     });
 
+    let vis = builder_attr.build_fn.vis(builder_attr);
+
     quote! {
         impl #impl_generics #builder #ty_generics #builder_where {
             #(#build_fn_attributes)*
-            #builder_vis #konst fn #build_fn_name(self) -> #ret_ty {
+            #vis #konst fn #build_fn_name(self) -> #ret_ty {
                 #[allow(deprecated)] // #inner is set to deprecated
                 let val = {
                     #set_not_skipped_fields
@@ -372,6 +373,20 @@ pub fn type_state_builder(
     let konst = builder_attr.konst_kw();
     let attributes = &builder_attr.attributes;
 
+    let builder_fn = {
+        let vis = builder_attr.builder_fn.vis(builder_attr);
+        let name = &builder_attr.builder_fn.name;
+        let attributes = &builder_attr.builder_fn.attributes;
+        quote! {
+            impl #default_impl_generics #ident #default_ty_generics #where_clause {
+                #(#attributes)*
+                #vis #konst fn #name() -> #builder #new_generics {
+                    #builder::new()
+                }
+            }
+        }
+    };
+
     out.extend(quote! {
         #(#attributes)*
         #[allow(clippy::type_complexity)]
@@ -385,14 +400,10 @@ pub fn type_state_builder(
             #phantom
         }
 
-        impl #default_impl_generics #ident #default_ty_generics #where_clause {
-            #builder_vis #konst fn builder() -> #builder #new_generics {
-                #builder::new()
-            }
-        }
+        #builder_fn
 
         impl #default_impl_generics #builder #new_generics #where_clause {
-            #builder_vis #konst fn new() -> Self {
+            #konst fn new() -> Self {
                 Self {
                     #inner: (#(#init,)*),
                     #state: ::core::marker::PhantomData,
@@ -433,6 +444,7 @@ pub fn type_state_builder(
 
         let field_i = f.tuple_index();
         let value_ty = &f.arg_ty();
+        let vis = &f.attr.vis;
         let fun = match &f.attr.repeat {
             Some(Repeat { len: Len::None, .. }) => {
                 let impl_generics = CustomImplGenerics::new(
@@ -448,7 +460,7 @@ pub fn type_state_builder(
                     impl #impl_generics #builder #ty_generics #where_clause {
                         #(#fn_attributes)*
                         #[allow(clippy::type_complexity)]
-                        pub #konst fn #fn_ident(self, #args) -> #builder #ty_generics {
+                        #vis #konst fn #fn_ident(self, #args) -> #builder #ty_generics {
                             let value: #value_ty = #value;
                             let mut this = self; // rather than have `mut self` in the signature
                             #[allow(deprecated)] // #inner is set to deprecated
@@ -516,7 +528,7 @@ pub fn type_state_builder(
                     impl #impl_generics #builder #ty_generics #field_where {
                         #(#fn_attributes)*
                         #[allow(clippy::type_complexity)]
-                        pub #konst fn #fn_ident(self, #args) -> #builder #ret_ty_generics {
+                        #vis #konst fn #fn_ident(self, #args) -> #builder #ret_ty_generics {
                             let value: #value_ty = #value;
                             let mut this = self; // rather than have `mut self` in the signature
                             #[allow(deprecated)] // #inner is set to deprecated
@@ -572,7 +584,7 @@ pub fn type_state_builder(
                     impl #impl_generics_fields #builder #struct_generics_fields #where_clause {
                         #(#fn_attributes)*
                         #[allow(clippy::type_complexity)]
-                        pub #konst fn #fn_ident(self, #args) -> #builder #return_struct_generics_fields {
+                        #vis #konst fn #fn_ident(self, #args) -> #builder #return_struct_generics_fields {
                             let value: #value_ty = #value;
                             let mut this = self; // rather than have `mut self` in the signature
                             #[allow(deprecated)] // #inner is set to deprecated

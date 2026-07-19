@@ -1,0 +1,47 @@
+error[E0603]: struct `PubSuperStruct` is private
+  --> tests/ui/visibility-pub-super-ts.fail.rs:32:26
+   |
+32 |         crate::foo::bar::PubSuperStruct::builder().foo(32).build(); // fails to compile
+   |                          ^^^^^^^^^^^^^^ private struct
+   |
+note: the struct `PubSuperStruct` is defined here
+  --> tests/ui/visibility-pub-super-ts.fail.rs:5:9
+   |
+5  |         pub(super) struct PubSuperStruct {
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error[E0624]: associated function `builder` is private
+  --> tests/ui/visibility-pub-super-ts.fail.rs:32:42
+   |
+3  |         #[derive(bauer::Builder)]
+   |                  -------------- private associated function defined here
+...
+32 |         crate::foo::bar::PubSuperStruct::builder().foo(32).build(); // fails to compile
+   |                                          ^^^^^^^ private associated function
+
+error[E0624]: method `foo` is private
+  --> tests/ui/visibility-pub-super-ts.fail.rs:32:52
+   |
+3  |         #[derive(bauer::Builder)]
+   |                  -------------- private method defined here
+...
+32 |         crate::foo::bar::PubSuperStruct::builder().foo(32).build(); // fails to compile
+   |                                                    ^^^ private method
+
+error[E0624]: associated function `builder` is private
+  --> tests/ui/visibility-pub-super-ts.fail.rs:33:40
+   |
+10 |         #[derive(bauer::Builder)]
+   |                  -------------- private associated function defined here
+...
+33 |         crate::foo::bar::PubSuperAttr::builder().foo(32).build(); // fails to compile (on builder/foo)
+   |                                        ^^^^^^^ private associated function
+
+error[E0624]: method `foo` is private
+  --> tests/ui/visibility-pub-super-ts.fail.rs:33:50
+   |
+10 |         #[derive(bauer::Builder)]
+   |                  -------------- private method defined here
+...
+33 |         crate::foo::bar::PubSuperAttr::builder().foo(32).build(); // fails to compile (on builder/foo)
+   |                                                  ^^^ private method

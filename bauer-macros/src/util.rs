@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use proc_macro2::{TokenStream, TokenTree};
 use quote::{ToTokens, format_ident, quote};
-use syn::{DeriveInput, Ident};
+use syn::{DeriveInput, Ident, VisRestricted, Visibility};
 
 use crate::BuilderField;
 
@@ -128,5 +128,50 @@ pub fn parallel_assign<'a>(
             #prefix
             (#(#values),*)
         };
+    }
+}
+
+#[derive(PartialEq, Eq, PartialOrd, Ord)]
+enum PubInner {
+    Selb,  // pub(self)
+    In,    // pub(in ..)
+    Super, // pub(super)
+    Crate, // pub(crate)
+}
+
+impl From<&VisRestricted> for PubInner {
+    fn from(value: &VisRestricted) -> Self {
+        if value.in_token.is_some() {
+            Self::In
+        } else if value.path.is_ident("self") {
+            Self::Selb
+        } else if value.path.is_ident("super") {
+            Self::Super
+        } else if value.path.is_ident("crate") {
+            Self::Crate
+        } else {
+            unreachable!("pub can only contain self, super, crate or in");
+        }
+    }
+}
+
+/// a is stricter than b <=> a < b:
+/// Inherited < pub(self) < pub(in ..) < pub(super) < pub(crate) < Public
+pub(crate) fn stricter_visibility<'a>(a: &'a Visibility, b: &'a Visibility) -> &'a Visibility {
+    if a == b {
+        return a;
+    }
+    match (a, b) {
+        (Visibility::Public(_), _) => b,
+        (Visibility::Inherited, _) => a,
+        (Visibility::Restricted(_), Visibility::Public(_)) => a,
+        (Visibility::Restricted(_), Visibility::Inherited) => b,
+        (Visibility::Restricted(ar), Visibility::Restricted(br)) => {
+            if PubInner::from(ar) < PubInner::from(br) {
+                a
+            } else {
+                b
+            }
+        }
     }
 }

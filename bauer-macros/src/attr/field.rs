@@ -5,7 +5,7 @@ use proc_macro2::{Span, TokenStream};
 use quote::{ToTokens, format_ident, quote, quote_spanned};
 use strum::{AsRefStr, IntoStaticStr, VariantArray};
 use syn::{
-    Expr, ExprClosure, Field, Ident, Index, LitStr, Pat, Path, Token, TraitBound, Type,
+    Expr, ExprClosure, Field, Ident, Index, LitStr, Pat, Path, Token, TraitBound, Type, Visibility,
     parenthesized,
     parse::{Parse, ParseStream},
     parse_quote, parse_quote_spanned,
@@ -135,6 +135,7 @@ enum Attribute {
     Doc,
     Collector,
     Skip,
+    Visibility,
 }
 
 impl Attribute {
@@ -171,6 +172,7 @@ impl Attribute {
             Attribute::Doc => false,
             Attribute::Collector => true,
             Attribute::Skip => true,
+            Attribute::Visibility => true,
         }
     }
 
@@ -310,7 +312,7 @@ impl BuilderField {
         let (args, _) = self.attr.to_args_and_value(ty, &self.ident);
         let self_param = builder_attr.self_param();
         let return_type = builder_attr.return_type();
-        let builder_vis = &builder_attr.vis;
+        let vis = &self.attr.vis;
 
         let attributes = &self.attr.attributes;
         let konst = builder_attr.konst_kw();
@@ -325,7 +327,7 @@ impl BuilderField {
             #(#attributes)*
             #[must_use = "The builder doesn't construct its type until `.build()` is called"]
             #unused
-            #builder_vis #konst fn #fn_ident(#self_param, #args) -> #return_type {
+            #vis #konst fn #fn_ident(#self_param, #args) -> #return_type {
                 #body
             }
         }
@@ -385,7 +387,7 @@ impl BuilderField {
         };
 
         let mut attr: FieldAttr = {
-            let mut out = FieldAttr::default();
+            let mut out = FieldAttr::new(builder_attr.vis.clone());
 
             for on in &builder_attr.on {
                 match on.apply(&value.ty) {
@@ -871,8 +873,9 @@ impl Skip {
     }
 }
 
-#[derive(Default, Debug)]
+#[derive(Debug)]
 pub struct FieldAttr {
+    pub vis: Visibility,
     pub skip: Skip,
     pub default: Option<DefaultAttr>,
     pub into: Option<Span>,
@@ -889,6 +892,22 @@ pub struct FieldAttr {
 }
 
 impl FieldAttr {
+    fn new(builder_vis: syn::Visibility) -> Self {
+        Self {
+            vis: builder_vis,
+            skip: Default::default(),
+            default: Default::default(),
+            into: Default::default(),
+            repeat: Default::default(),
+            rename: Default::default(),
+            skip_prefix: Default::default(),
+            skip_suffix: Default::default(),
+            tuple: Default::default(),
+            adapter: Default::default(),
+            attributes: Default::default(),
+        }
+    }
+
     pub fn to_args_and_value(&self, ty: &Type, field_name: &Ident) -> (TokenStream, TokenStream) {
         if let Some(adapter) = &self.adapter {
             return adapter.to_args_and_value();
@@ -1182,6 +1201,10 @@ impl FieldAttr {
                     } else {
                         Skip::Default { ident }
                     };
+                }
+                Attribute::Visibility => {
+                    let _: Token![=] = input.parse()?;
+                    self.vis = input.parse()?;
                 }
             }
             n_attr += 1;

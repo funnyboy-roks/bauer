@@ -1,4 +1,4 @@
-error: Unknown attribute 'foo'.  Valid attribute are: 'default, into, repeat, repeat_n, rename, skip_prefix, skip_suffix, tuple, adapter, attributes, doc, collector, skip'
+error: Unknown attribute 'foo'.  Valid attribute are: 'default, into, repeat, repeat_n, rename, skip_prefix, skip_suffix, tuple, adapter, attributes, doc, collector, skip, visibility'
  --> tests/ui/on-invalid-attr.fail.rs:4:19
   |
 4 | #[builder(on(_ => foo))]

@@ -1,0 +1,59 @@
+error[E0603]: struct `NoVis` is private
+  --> tests/ui/visibility-no-vis-ts.fail.rs:16:14
+   |
+16 |         bar::NoVis::builder().foo(32).build(); // fails to compile
+   |              ^^^^^ private struct
+   |
+note: the struct `NoVis` is defined here
+  --> tests/ui/visibility-no-vis-ts.fail.rs:5:9
+   |
+5  |         struct NoVis {
+   |         ^^^^^^^^^^^^
+
+error[E0603]: struct `NoVis` is private
+  --> tests/ui/visibility-no-vis-ts.fail.rs:22:26
+   |
+22 |         crate::foo::bar::NoVis::builder().foo(32).build(); // fails to compile
+   |                          ^^^^^ private struct
+   |
+note: the struct `NoVis` is defined here
+  --> tests/ui/visibility-no-vis-ts.fail.rs:5:9
+   |
+5  |         struct NoVis {
+   |         ^^^^^^^^^^^^
+
+error[E0624]: associated function `builder` is private
+  --> tests/ui/visibility-no-vis-ts.fail.rs:16:21
+   |
+3  |         #[derive(bauer::Builder)]
+   |                  -------------- private associated function defined here
+...
+16 |         bar::NoVis::builder().foo(32).build(); // fails to compile
+   |                     ^^^^^^^ private associated function
+
+error[E0624]: method `foo` is private
+  --> tests/ui/visibility-no-vis-ts.fail.rs:16:31
+   |
+3  |         #[derive(bauer::Builder)]
+   |                  -------------- private method defined here
+...
+16 |         bar::NoVis::builder().foo(32).build(); // fails to compile
+   |                               ^^^ private method
+
+error[E0624]: associated function `builder` is private
+  --> tests/ui/visibility-no-vis-ts.fail.rs:22:33
+   |
+3  |         #[derive(bauer::Builder)]
+   |                  -------------- private associated function defined here
+...
+22 |         crate::foo::bar::NoVis::builder().foo(32).build(); // fails to compile
+   |                                 ^^^^^^^ private associated function
+
+error[E0624]: method `foo` is private
+  --> tests/ui/visibility-no-vis-ts.fail.rs:22:43
+   |
+3  |         #[derive(bauer::Builder)]
+   |                  -------------- private method defined here
+...
+22 |         crate::foo::bar::NoVis::builder().foo(32).build(); // fails to compile
+   |                                           ^^^ private method
