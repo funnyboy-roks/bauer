@@ -1,0 +1,26 @@
+error[E0624]: method `build` is private
+  --> tests/ui/visibility-complex.fail.rs:28:14
+   |
+3  |         #[derive(bauer::Builder)]
+   |                  -------------- private method defined here
+...
+28 |             .build(); // fail
+   |              ^^^^^ private method
+
+error[E0624]: associated function `builder` is private
+  --> tests/ui/visibility-complex.fail.rs:34:35
+   |
+3  |         #[derive(bauer::Builder)]
+   |                  -------------- private associated function defined here
+...
+34 |         crate::foo::bar::Complex::builder() // fail
+   |                                   ^^^^^^^ private associated function
+
+error[E0624]: method `build` is private
+  --> tests/ui/visibility-complex.fail.rs:36:14
+   |
+3  |         #[derive(bauer::Builder)]
+   |                  -------------- private method defined here
+...
+36 |             .build(); // fail
+   |              ^^^^^ private method

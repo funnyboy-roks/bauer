@@ -7,6 +7,7 @@ use syn::{
     DeriveInput, Ident, Pat, parse::ParseStream, parse_macro_input, parse_quote_spanned,
     spanned::Spanned,
 };
+use util::stricter_visibility;
 
 use crate::{
     attr::builder::{BuilderAttr, Kind},
@@ -53,6 +54,9 @@ fn failed_builder(
 
     let infallible = (is_type_state || build_err_variants.is_empty()) && !builder_attr.error.force;
 
+    let error_vis =
+        stricter_visibility(builder_attr.build_fn.vis(&builder_attr), &builder_attr.vis);
+
     let build_err_enum = if infallible {
         quote! {}
     } else {
@@ -60,7 +64,7 @@ fn failed_builder(
         quote! {
             #(#attributes)*
             #[derive(::std::fmt::Debug, ::std::cmp::PartialEq, ::std::cmp::Eq)]
-            #builder_vis enum #build_err {}
+            #error_vis enum #build_err {}
 
             impl ::core::fmt::Display for #build_err {
                 fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
@@ -78,12 +82,15 @@ fn failed_builder(
         quote! { ::core::result::Result<#ident #ty_generics, #build_err> }
     };
 
-    let build_fn_attributes = &builder_attr.build_fn.attributes;
-    let build_fn_name = &builder_attr.build_fn.name;
-    let build_fn = quote! {
-        #(#build_fn_attributes)*
-        #builder_vis #konst fn #build_fn_name(#self_param) -> #ret_ty {
-            panic!("Invalid Builder")
+    let build_fn = {
+        let attributes = &builder_attr.build_fn.attributes;
+        let name = &builder_attr.build_fn.name;
+        let vis = builder_attr.build_fn.vis(&builder_attr);
+        quote! {
+            #(#attributes)*
+            #vis #konst fn #name(#self_param) -> #ret_ty {
+                panic!("Invalid Builder")
+            }
         }
     };
 
@@ -169,15 +176,15 @@ fn builder_fn(input: &DeriveInput, builder_attr: &BuilderAttr, builder: &Ident) 
     let ident = &input.ident;
     let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
     let konst = builder_attr.konst_kw();
-    let builder_vis = &builder_attr.vis;
 
     let name = &builder_attr.builder_fn.name;
     let attributes = &builder_attr.builder_fn.attributes;
+    let vis = builder_attr.builder_fn.vis(builder_attr);
 
     quote! {
         impl #impl_generics #ident #ty_generics #where_clause {
             #(#attributes)*
-            #builder_vis #konst fn #name() -> #builder #ty_generics {
+            #vis #konst fn #name() -> #builder #ty_generics {
                 #builder::new()
             }
         }
@@ -464,21 +471,24 @@ pub fn builder(input: TokenStream) -> TokenStream {
         ret_val = quote! { Ok(#ret_val) };
     }
 
-    let build_fn_attributes = &builder_attr.build_fn.attributes;
-    let build_fn_name = &builder_attr.build_fn.name;
-    let build_fn = quote! {
-        #(#build_fn_attributes)*
-        #builder_vis #konst fn #build_fn_name(#self_param) -> #ret_ty {
-            #[allow(deprecated)] // #inner is set to deprecated
-            let ret = {
-                #set_not_skipped_fields
-                #set_skipped_fields
+    let build_fn = {
+        let attributes = &builder_attr.build_fn.attributes;
+        let name = &builder_attr.build_fn.name;
+        let vis = builder_attr.build_fn.vis(&builder_attr);
+        quote! {
+            #(#attributes)*
+            #vis #konst fn #name(#self_param) -> #ret_ty {
+                #[allow(deprecated)] // #inner is set to deprecated
+                let ret = {
+                    #set_not_skipped_fields
+                    #set_skipped_fields
 
-                #ident {
-                    #(#finish_fields),*
-                }
-            };
-            #ret_val
+                    #ident {
+                        #(#finish_fields),*
+                    }
+                };
+                #ret_val
+            }
         }
     };
 
@@ -486,11 +496,15 @@ pub fn builder(input: TokenStream) -> TokenStream {
         quote! {}
     } else {
         let attributes = &builder_attr.error.attributes;
+
+        let error_vis =
+            stricter_visibility(builder_attr.build_fn.vis(&builder_attr), &builder_attr.vis);
+
         quote! {
             #(#attributes)*
             #[derive(::std::fmt::Debug, ::std::cmp::PartialEq, ::std::cmp::Eq)]
             #[allow(enum_variant_names)]
-            #builder_vis enum #build_err {
+            #error_vis enum #build_err {
                 #(#build_err_variants),*
             }
 

@@ -1,11 +1,13 @@
 use quote::format_ident;
 use strum::{AsRefStr, IntoStaticStr, VariantArray};
 use syn::{
-    Expr, ExprClosure, Ident, LitStr, Token, Type, ext::IdentExt, parse::ParseStream,
+    Expr, ExprClosure, Ident, LitStr, Token, Type, Visibility, ext::IdentExt, parse::ParseStream,
     spanned::Spanned,
 };
 
 use crate::util::parse::{parethesised_or_braced, parse_attributes, parse_docs};
+
+use super::builder::BuilderAttr;
 
 macro_rules! bail {
     ($span: expr => $message: literal $(, $args: expr)*$(,)?) => {
@@ -18,12 +20,14 @@ macro_rules! bail {
 
 #[derive(Clone, Copy, VariantArray, IntoStaticStr, AsRefStr, Debug, PartialEq, Eq)]
 #[strum(serialize_all = "snake_case")]
+#[repr(usize)]
 enum Attribute {
     #[allow(clippy::enum_variant_names)]
-    Attributes,
+    Attributes = 0,
     Doc,
     Rename,
     Map,
+    Visibility,
 }
 
 impl Attribute {
@@ -36,6 +40,20 @@ impl Attribute {
             Self::Attributes => ident == "attribute",
             Self::Doc => ident == "docs",
             _ => false,
+        }
+    }
+
+    const fn index(self) -> usize {
+        self as usize
+    }
+
+    const fn single_use(self) -> bool {
+        match self {
+            Attribute::Attributes => false,
+            Attribute::Doc => false,
+            Attribute::Rename => true,
+            Attribute::Map => true,
+            Attribute::Visibility => true,
         }
     }
 
@@ -63,39 +81,56 @@ impl Attribute {
 
 #[derive(Debug, Clone)]
 pub struct BuildFnAttr {
+    /// None - Inherit from builder
+    /// Some(vis) - use that visibility
+    vis: Option<Visibility>,
     pub is_builder: bool,
     pub attributes: Vec<syn::Attribute>,
     pub name: Ident,
     pub mapper: Option<(Ident, Type, Expr)>,
+    pub set_fields: [bool; const { Attribute::VARIANTS.len() }],
 }
 
 impl BuildFnAttr {
     pub fn default_build() -> Self {
         Self {
+            vis: None,
             is_builder: false,
             attributes: Default::default(),
             name: format_ident!("build"),
             mapper: None,
+            set_fields: Default::default(),
         }
     }
 
     pub fn default_builder() -> Self {
         Self {
+            vis: None,
             is_builder: true,
             attributes: Default::default(),
             name: format_ident!("builder"),
             mapper: None,
+            set_fields: Default::default(),
         }
+    }
+
+    pub fn vis<'a>(&'a self, builder_attr: &'a BuilderAttr) -> &'a Visibility {
+        self.vis.as_ref().unwrap_or(&builder_attr.vis)
     }
 }
 
 impl BuildFnAttr {
     pub fn parse(&mut self, input: ParseStream) -> syn::Result<()> {
-        let mut rename_set = false;
-
         while input.peek(Ident::peek_any) {
             let ident = Ident::parse_any(input)?;
-            match Attribute::parse(&ident)? {
+            let attr = Attribute::parse(&ident)?;
+
+            if self.set_fields[attr.index()] && attr.single_use() {
+                bail!(ident.span() => "`{}` may only be used once", <&str>::from(attr));
+            }
+            self.set_fields[attr.index()] = true;
+
+            match attr {
                 Attribute::Attributes => {
                     let attrs = parethesised_or_braced(input)?;
 
@@ -111,14 +146,8 @@ impl BuildFnAttr {
                     }
                 }
                 Attribute::Rename => {
-                    if rename_set {
-                        bail!(ident.span() => "`rename` may only be used once");
-                    }
-
                     let _: Token![=] = input.parse()?;
                     let s: LitStr = input.parse()?;
-
-                    rename_set = true;
                     self.name = s.parse()?;
                 }
                 Attribute::Map => {
@@ -145,6 +174,10 @@ impl BuildFnAttr {
                             self.mapper = Some((ident, *ty, *closure.body))
                         }
                     }
+                }
+                Attribute::Visibility => {
+                    let _: Token![=] = input.parse()?;
+                    self.vis = Some(input.parse()?);
                 }
             }
 

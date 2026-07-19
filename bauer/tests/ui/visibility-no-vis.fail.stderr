@@ -1,0 +1,59 @@
+error[E0603]: struct `NoVis` is private
+  --> tests/ui/visibility-no-vis.fail.rs:15:14
+   |
+15 |         bar::NoVis::builder().foo(32).build(); // fails to compile
+   |              ^^^^^ private struct
+   |
+note: the struct `NoVis` is defined here
+  --> tests/ui/visibility-no-vis.fail.rs:4:9
+   |
+4  |         struct NoVis {
+   |         ^^^^^^^^^^^^
+
+error[E0603]: struct `NoVis` is private
+  --> tests/ui/visibility-no-vis.fail.rs:21:26
+   |
+21 |         crate::foo::bar::NoVis::builder().foo(32).build(); // fails to compile
+   |                          ^^^^^ private struct
+   |
+note: the struct `NoVis` is defined here
+  --> tests/ui/visibility-no-vis.fail.rs:4:9
+   |
+4  |         struct NoVis {
+   |         ^^^^^^^^^^^^
+
+error[E0624]: associated function `builder` is private
+  --> tests/ui/visibility-no-vis.fail.rs:15:21
+   |
+3  |         #[derive(bauer::Builder)]
+   |                  -------------- private associated function defined here
+...
+15 |         bar::NoVis::builder().foo(32).build(); // fails to compile
+   |                     ^^^^^^^ private associated function
+
+error[E0624]: method `foo` is private
+  --> tests/ui/visibility-no-vis.fail.rs:15:31
+   |
+3  |         #[derive(bauer::Builder)]
+   |                  -------------- private method defined here
+...
+15 |         bar::NoVis::builder().foo(32).build(); // fails to compile
+   |                               ^^^ private method
+
+error[E0624]: associated function `builder` is private
+  --> tests/ui/visibility-no-vis.fail.rs:21:33
+   |
+3  |         #[derive(bauer::Builder)]
+   |                  -------------- private associated function defined here
+...
+21 |         crate::foo::bar::NoVis::builder().foo(32).build(); // fails to compile
+   |                                 ^^^^^^^ private associated function
+
+error[E0624]: method `foo` is private
+  --> tests/ui/visibility-no-vis.fail.rs:21:43
+   |
+3  |         #[derive(bauer::Builder)]
+   |                  -------------- private method defined here
+...
+21 |         crate::foo::bar::NoVis::builder().foo(32).build(); // fails to compile
+   |                                           ^^^ private method

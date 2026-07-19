@@ -110,7 +110,7 @@ enum Attribute {
 
 impl Attribute {
     #[inline]
-    const fn single_use(&self) -> bool {
+    const fn single_use(self) -> bool {
         match self {
             Attribute::Kind => true,
             Attribute::Prefix => true,
@@ -125,6 +125,11 @@ impl Attribute {
             Attribute::Error => true,
             Attribute::On => false,
         }
+    }
+
+    #[inline]
+    const fn index(self) -> usize {
+        self as usize
     }
 
     fn matches(self, ident: &Ident) -> bool {
@@ -177,12 +182,12 @@ pub struct BuilderAttr {
 }
 
 impl BuilderAttr {
-    pub fn new(vis: Visibility) -> Self {
+    pub fn new(struct_vis: Visibility) -> Self {
         Self {
             kind: Default::default(),
             prefix: Default::default(),
             suffix: Default::default(),
-            vis,
+            vis: struct_vis,
             krate: format_ident!("bauer"),
             konst: false,
             attributes: Default::default(),
@@ -240,10 +245,10 @@ impl BuilderAttr {
             let ident = Ident::parse_any(input)?;
             let attr = Attribute::parse(&ident)?;
 
-            if self.set_fields[attr as usize] && attr.single_use() {
+            if self.set_fields[attr.index()] && attr.single_use() {
                 bail!(ident.span() => "`{}` may only be used once", <&str>::from(attr));
             }
-            self.set_fields[attr as usize] = true;
+            self.set_fields[attr.index()] = true;
 
             match Attribute::parse(&ident)? {
                 Attribute::Kind => {
