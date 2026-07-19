@@ -103,7 +103,7 @@ All of the attributes that may be applied to fields are listed below.  These go 
 |   Attribute                            | Description                                                                                                 | Usage                              |
 | -------------------------------------- | ----------------------------------------------------------------------------------------------------------- | ---------------------------------- |
 | [`skip`]                               | Skip this field in the builder.  No other attributes may be specified when this is used.                    | `skip` or `skip = <value>`         |
-| [`visibility`]                         | Change visibility of the generated function (defaults to the same visibility as the builder)                | `visibility = pub(crate)`          |
+| [`visibility`][field_vis]              | Change visibility of the generated function (defaults to the same visibility as the builder)                | `visibility = pub(crate)`          |
 | [`default`]                            | Specify a default value or use [`Default`]                                                                  | `default` or `default = <value>`   |
 | [`repeat`]                             | Allow repating call to add items to a structure                                                             | `repeat` or `repeat = <type>`      |
 | [`repeat_n`]                           | Contorl the number times a `repeat` field is allowed to be set.  This controls the length of the final data | `repeat_n = 1..` or `repeat_n = 4` |
@@ -117,7 +117,7 @@ All of the attributes that may be applied to fields are listed below.  These go 
 | [`doc`/`docs`][field_doc]              | Set documentation items on the function generated for this field                                            | `doc(<doc strings>)`               |
 
 [`skip`]: https://docs.rs/bauer/latest/bauer/derive.Builder.html#skip
-[`visibility`]: https://docs.rs/bauer/latest/bauer/derive.Builder.html#visibility-1
+[field_vis]: https://docs.rs/bauer/latest/bauer/derive.Builder.html#visibility-1
 [`default`]: https://docs.rs/bauer/latest/bauer/derive.Builder.html#default
 [`repeat`]: https://docs.rs/bauer/latest/bauer/derive.Builder.html#repeat
 [`repeat_n`]: https://docs.rs/bauer/latest/bauer/derive.Builder.html#repeat_n
