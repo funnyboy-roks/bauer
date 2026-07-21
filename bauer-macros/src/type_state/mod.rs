@@ -10,6 +10,7 @@ use syn::{
 use crate::{
     BuilderAttr, BuilderField, Len, Repeat,
     attr::field::FieldIdents,
+    builder_args,
     type_state::generics::{CustomImplGenerics, CustomTypeGenerics},
     util::{ReplaceTrait, ensure_no_conflict, known_idents, parallel_assign},
 };
@@ -36,7 +37,9 @@ fn build_fn(
         let pascal = &field.idents.pascal;
         let field_i = field.tuple_index();
 
-        let value = if let Some(Repeat {
+        let value = if field.is_associated() {
+            quote! { inner.#field_i }
+        } else if let Some(Repeat {
             inner_ty,
             len: Len::Int { .. },
             array,
@@ -258,7 +261,11 @@ pub fn type_state_builder(
 
     let generic_fields: Vec<_> = fields
         .iter()
-        .filter(|f| !f.should_skip() && f.attr.repeat.as_ref().is_none_or(|r| r.len.is_some()))
+        .filter(|f| {
+            !f.should_skip()
+                && !f.is_associated()
+                && f.attr.repeat.as_ref().is_none_or(|r| r.len.is_some())
+        })
         .collect();
 
     let mut out = TokenStream::new();
@@ -315,7 +322,9 @@ pub fn type_state_builder(
 
     let field_decls = fields.iter().filter(|f| !f.should_skip()).map(|f| {
         let ty = &f.ty;
-        if let Some(Repeat {
+        if f.is_associated() {
+            ty.to_token_stream()
+        } else if let Some(Repeat {
             inner_ty,
             len: Len::Int { len },
             ..
@@ -332,7 +341,10 @@ pub fn type_state_builder(
     });
 
     let init = fields.iter().filter(|f| !f.should_skip()).map(|f| {
-        if let Some(Repeat {
+        if f.is_associated() {
+            let (_, value) = f.attr.to_args_and_value(&f.ty, f.arg_name());
+            value
+        } else if let Some(Repeat {
             len: Len::Int { .. },
             ..
         }) = &f.attr.repeat
@@ -377,11 +389,26 @@ pub fn type_state_builder(
         let vis = builder_attr.builder_fn.vis(builder_attr);
         let name = &builder_attr.builder_fn.name;
         let attributes = &builder_attr.builder_fn.attributes;
+        let (names, args, _) = builder_args(&fields);
         quote! {
             impl #default_impl_generics #ident #default_ty_generics #where_clause {
                 #(#attributes)*
-                #vis #konst fn #name() -> #builder #new_generics {
-                    #builder::new()
+                #vis #konst fn #name(#(#args),*) -> #builder #new_generics {
+                    #builder::new(#(#names),*)
+                }
+            }
+        }
+    };
+
+    let new_fn = {
+        let (_, args, _) = builder_args(&fields);
+        quote! {
+            impl #default_impl_generics #builder #new_generics #where_clause {
+                #konst fn new(#(#args),*) -> Self {
+                    Self {
+                        #inner: (#(#init,)*),
+                        #state: ::core::marker::PhantomData,
+                    }
                 }
             }
         }
@@ -401,15 +428,7 @@ pub fn type_state_builder(
         }
 
         #builder_fn
-
-        impl #default_impl_generics #builder #new_generics #where_clause {
-            #konst fn new() -> Self {
-                Self {
-                    #inner: (#(#init,)*),
-                    #state: ::core::marker::PhantomData,
-                }
-            }
-        }
+        #new_fn
     });
 
     // add `fn build()`
@@ -425,7 +444,7 @@ pub fn type_state_builder(
 
     let mut i = 0;
     for f in &fields {
-        if f.should_skip() {
+        if f.should_skip() || f.is_associated() {
             continue; // skip
         }
 

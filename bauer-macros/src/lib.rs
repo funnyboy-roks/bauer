@@ -101,7 +101,7 @@ fn failed_builder(
         (!infallible).then_some(build_err),
     );
 
-    let builder_fn = builder_fn(input, &builder_attr, &builder);
+    let builder_fn = builder_fn(input, &builder_attr, &builder, &fields);
 
     let errors = errors.iter().map(syn::Error::to_compile_error);
 
@@ -172,7 +172,30 @@ fn into_impl(
     }
 }
 
-fn builder_fn(input: &DeriveInput, builder_attr: &BuilderAttr, builder: &Ident) -> TokenStream2 {
+fn builder_args(
+    fields: &[BuilderField],
+) -> (
+    Vec<&Ident>,       // field name
+    Vec<TokenStream2>, // function arguments
+    Vec<TokenStream2>, // expanded value
+) {
+    fields
+        .iter()
+        .filter(|f| f.is_associated())
+        .map(|f| {
+            let name = f.arg_name();
+            let (args, value) = f.attr.to_args_and_value(&f.ty, name);
+            (name, args, value)
+        })
+        .collect()
+}
+
+fn builder_fn(
+    input: &DeriveInput,
+    builder_attr: &BuilderAttr,
+    builder: &Ident,
+    fields: &[BuilderField],
+) -> TokenStream2 {
     let ident = &input.ident;
     let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
     let konst = builder_attr.konst_kw();
@@ -181,11 +204,13 @@ fn builder_fn(input: &DeriveInput, builder_attr: &BuilderAttr, builder: &Ident) 
     let attributes = &builder_attr.builder_fn.attributes;
     let vis = builder_attr.builder_fn.vis(builder_attr);
 
+    let (associated_names, arguments, _) = builder_args(fields);
+
     quote! {
         impl #impl_generics #ident #ty_generics #where_clause {
             #(#attributes)*
-            #vis #konst fn #name() -> #builder #ty_generics {
-                #builder::new()
+            #vis #konst fn #name(#(#arguments),*) -> #builder #ty_generics {
+                #builder::new(#(#associated_names),*)
             }
         }
     }
@@ -305,7 +330,10 @@ pub fn builder(input: TokenStream) -> TokenStream {
         .iter()
         .filter(|f| !f.should_skip())
         .map(|f| {
-            if let Some(Repeat {
+            if f.is_associated() {
+                let (_, value) = f.attr.to_args_and_value(&f.ty, f.arg_name());
+                (f.ty.to_token_stream(), value)
+            } else if let Some(Repeat {
                 inner_ty,
                 array,
                 len,
@@ -342,7 +370,7 @@ pub fn builder(input: TokenStream) -> TokenStream {
 
     let functions: TokenStream2 = fields
         .iter()
-        .filter(|f| !f.should_skip())
+        .filter(|f| !f.should_skip() && !f.is_associated())
         .map(|f| f.function(&builder_attr, &inner))
         .collect();
 
@@ -353,7 +381,17 @@ pub fn builder(input: TokenStream) -> TokenStream {
         let wrapped_ty = &field.wrapped_type();
         let field_i = field.tuple_index();
 
-        let value = if let Some(rep @ Repeat { inner_ty, collector, .. }) = &field.attr.repeat {
+        let value = if field.is_associated() {
+            let clone = if builder_attr.kind == Kind::Borrowed {
+                quote! { .clone() }
+            } else {
+                quote! {}
+            };
+
+            quote! {
+                inner.#field_i #clone
+            }
+        } else if let Some(rep @ Repeat { inner_ty, collector, .. }) = &field.attr.repeat {
             if let Len::Raw { pattern, error } = &rep.len {
                 let value = if rep.array {
                     quote_spanned! { inner_ty.span()=> {
@@ -433,8 +471,14 @@ pub fn builder(input: TokenStream) -> TokenStream {
     let set_not_skipped_fields = parallel_assign(
         not_skipped_fields.iter().copied(),
         not_skipped_field_values,
-        quote! {
-            let inner = &mut self.#inner;
+        if builder_attr.kind == Kind::Borrowed {
+            quote! {
+                let inner = &mut self.#inner;
+            }
+        } else {
+            quote! {
+                let mut inner = self.#inner;
+            }
         },
     );
 
@@ -534,7 +578,29 @@ pub fn builder(input: TokenStream) -> TokenStream {
 
     let builder_attributes = &builder_attr.attributes;
 
-    let builder_fn = builder_fn(&input, &builder_attr, &builder);
+    let builder_fn = builder_fn(&input, &builder_attr, &builder, &fields);
+
+    let new_fn = {
+        let (_, arguments, _) = builder_args(&fields);
+        quote! {
+            impl #impl_generics #builder #ty_generics #where_clause {
+                #konst fn new(#(#arguments),*) -> Self {
+                    Self {
+                        #inner: (#(#init,)*),
+                    }
+                }
+            }
+        }
+    };
+    let default_fn = {
+        fields.iter().all(|f| !f.is_associated()).then(|| quote! {
+            impl #impl_generics ::core::default::Default for #builder #ty_generics #where_clause {
+                fn default() -> Self {
+                    Self::new()
+                }
+            }
+        })
+    };
 
     let assert_crate = builder_attr.assert_crate();
     quote! {
@@ -556,19 +622,8 @@ pub fn builder(input: TokenStream) -> TokenStream {
             #build_fn
         }
 
-        impl #impl_generics #builder #ty_generics #where_clause {
-            #konst fn new() -> Self {
-                Self {
-                    #inner: (#(#init,)*),
-                }
-            }
-        }
-
-        impl #impl_generics ::core::default::Default for #builder #ty_generics #where_clause {
-            fn default() -> Self {
-                Self::new()
-            }
-        }
+        #new_fn
+        #default_fn
 
         #builder_fn
 
