@@ -101,7 +101,7 @@ fn failed_builder(
         (!infallible).then_some(build_err),
     );
 
-    let builder_fn = builder_fn(input, &builder_attr, &builder, &fields);
+    let builder_fn = builder_fn(input, &builder_attr, &builder, &[]);
 
     let errors = errors.iter().map(syn::Error::to_compile_error);
 
