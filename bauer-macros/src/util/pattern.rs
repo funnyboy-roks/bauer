@@ -11,7 +11,7 @@ use syn::PathArguments;
 use syn::ReturnType;
 use syn::Type;
 use syn::TypeArray;
-use syn::TypeBareFn;
+use syn::TypeFnPtr;
 use syn::TypeParamBound;
 use syn::TypePath;
 use syn::TypeTraitObject;
@@ -33,8 +33,8 @@ fn match_arrays(pattern: &TypeArray, ty: &TypeArray, matches: &mut Vec<TokenStre
 }
 
 fn match_bare_function(
-    pattern: &TypeBareFn,
-    ty: &TypeBareFn,
+    pattern: &TypeFnPtr,
+    ty: &TypeFnPtr,
     matches: &mut Vec<TokenStream>,
 ) -> bool {
     if pattern == ty {
@@ -113,7 +113,7 @@ fn match_path(pattern: &TypePath, ty: &TypePath, matches: &mut Vec<TokenStream>)
                 }
 
                 for (f, p) in t.inputs.iter().zip(p.inputs.iter()) {
-                    if !pattern_match_type_inner(p, f, matches) {
+                    if !pattern_match_type_inner(&p.ty, &f.ty, matches) {
                         return false;
                     }
                 }
@@ -194,7 +194,7 @@ fn pattern_match_type_inner(pattern: &Type, ty: &Type, matches: &mut Vec<TokenSt
 
     match (ty, pattern) {
         (Type::Array(arr), Type::Array(pat)) => match_arrays(pat, arr, matches),
-        (Type::BareFn(func), Type::BareFn(pat)) => match_bare_function(pat, func, matches),
+        (Type::FnPtr(func), Type::FnPtr(pat)) => match_bare_function(pat, func, matches),
         (Type::Group(t), Type::Group(p)) => pattern_match_type_inner(&p.elem, &t.elem, matches),
         (Type::Macro(t), Type::Macro(p)) => t == p,
         (Type::Ptr(t), Type::Ptr(p)) => {
