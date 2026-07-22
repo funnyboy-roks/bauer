@@ -102,6 +102,7 @@ All of the attributes that may be applied to fields are listed below.  These go 
 
 |   Attribute                            | Description                                                                                                 | Usage                              |
 | -------------------------------------- | ----------------------------------------------------------------------------------------------------------- | ---------------------------------- |
+| [`associated`]                         | Mark this field as associated data with the builder.  Associated fields are specified by the `builder_fn`.  | `associated`                       |
 | [`skip`]                               | Skip this field in the builder.  No other attributes may be specified when this is used.                    | `skip` or `skip = <value>`         |
 | [`visibility`][field_vis]              | Change visibility of the generated function (defaults to the same visibility as the builder)                | `visibility = pub(crate)`          |
 | [`default`]                            | Specify a default value or use [`Default`]                                                                  | `default` or `default = <value>`   |
@@ -116,6 +117,7 @@ All of the attributes that may be applied to fields are listed below.  These go 
 | [`attribute`/`attributes`][field_attr] | Set attribute(s) on the function generated for this field                                                   | `attribute(#[foo])`                |
 | [`doc`/`docs`][field_doc]              | Set documentation items on the function generated for this field                                            | `doc(<doc strings>)`               |
 
+[`associated`]: https://docs.rs/bauer/latest/bauer/derive.Builder.html#associated
 [`skip`]: https://docs.rs/bauer/latest/bauer/derive.Builder.html#skip
 [field_vis]: https://docs.rs/bauer/latest/bauer/derive.Builder.html#visibility-1
 [`default`]: https://docs.rs/bauer/latest/bauer/derive.Builder.html#default
