@@ -452,11 +452,11 @@ pub fn type_state_builder(
         let fn_ident = f.function_ident(builder_attr);
 
         fn ident_to_type(ident: &Ident) -> Type {
-            TypePath {
+            Type::Path(TypePath {
+                attrs: Vec::new(),
                 qself: None,
                 path: ident.clone().into(),
-            }
-            .into()
+            })
         }
 
         let fn_attributes = &f.attr.attributes;
