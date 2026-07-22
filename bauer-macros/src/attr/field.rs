@@ -1,4 +1,4 @@
-use std::{cmp::Ordering, ops::Range};
+use std::{cmp::Ordering, fmt::Write, ops::Range};
 
 use convert_case::{Case, Casing};
 use proc_macro2::{Span, TokenStream};
@@ -136,11 +136,16 @@ enum Attribute {
     Collector,
     Skip,
     Visibility,
+    Associated,
 }
 
 impl Attribute {
     fn as_str(self) -> &'static str {
         self.into()
+    }
+
+    fn index(self) -> usize {
+        self as usize
     }
 }
 
@@ -173,6 +178,7 @@ impl Attribute {
             Attribute::Collector => true,
             Attribute::Skip => true,
             Attribute::Visibility => true,
+            Attribute::Associated => true,
         }
     }
 
@@ -234,6 +240,10 @@ impl BuilderField {
         self.attr.skip.is_set()
     }
 
+    pub fn is_associated(&self) -> bool {
+        self.attr.associated.is_some()
+    }
+
     pub fn skipped_field_value(&self) -> Option<TokenStream> {
         let value = match &self.attr.skip {
             Skip::None => return None,
@@ -278,8 +288,13 @@ impl BuilderField {
         self.wrapped_option || self.attr.default.is_some()
     }
 
+    pub fn arg_name(&self) -> &Ident {
+        self.attr.rename.as_ref().unwrap_or(&self.ident)
+    }
+
+    /// Make the identifier used for function name
     pub fn function_ident(&self, builder_attr: &BuilderAttr) -> Ident {
-        let ident = self.attr.rename.as_ref().unwrap_or(&self.ident);
+        let ident = self.arg_name();
         let prefix = if self.attr.skip_prefix {
             ""
         } else {
@@ -875,6 +890,7 @@ impl Skip {
 
 #[derive(Debug)]
 pub struct FieldAttr {
+    pub associated: Option<Ident>,
     pub vis: Visibility,
     pub skip: Skip,
     pub default: Option<DefaultAttr>,
@@ -889,11 +905,13 @@ pub struct FieldAttr {
     pub tuple: Option<Option<Vec<Ident>>>,
     pub adapter: Option<Adapter>,
     pub attributes: Vec<syn::Attribute>,
+    set: [bool; const { Attribute::VARIANTS.len() }],
 }
 
 impl FieldAttr {
     fn new(builder_vis: syn::Visibility) -> Self {
         Self {
+            associated: None,
             vis: builder_vis,
             skip: Default::default(),
             default: Default::default(),
@@ -905,6 +923,7 @@ impl FieldAttr {
             tuple: Default::default(),
             adapter: Default::default(),
             attributes: Default::default(),
+            set: Default::default(),
         }
     }
 
@@ -951,17 +970,15 @@ impl FieldAttr {
     ) -> syn::Result<()> {
         let field_ident = field.ident.as_ref().unwrap();
 
-        let mut set = [false; const { Attribute::VARIANTS.len() }];
-
         let mut n_attr = 0;
         while input.peek(syn::Ident) {
             let ident: Ident = input.parse()?;
             let attr = Attribute::parse(&ident)?;
 
-            if set[attr as usize] && attr.single_use() {
+            if self.set[attr.index()] && attr.single_use() {
                 bail!(ident.span() => "`{}` may only be used once", attr.as_str());
             }
-            set[attr as usize] = true;
+            self.set[attr.index()] = true;
 
             match attr {
                 Attribute::Default => {
@@ -1206,6 +1223,9 @@ impl FieldAttr {
                     let _: Token![=] = input.parse()?;
                     self.vis = input.parse()?;
                 }
+                Attribute::Associated => {
+                    self.associated = Some(ident);
+                }
             }
             n_attr += 1;
 
@@ -1222,6 +1242,36 @@ impl FieldAttr {
                 bail!(
                     ident.span() =>
                     "`skip` may not be used with any other attributes"
+                );
+            }
+        }
+
+        if let Some(assoc) = &self.associated {
+            /// attributes that conflict with associated
+            const CONFLICT: &[Attribute] = &[
+                Attribute::Default,
+                Attribute::Repeat,
+                Attribute::RepeatN,
+                Attribute::SkipPrefix,
+                Attribute::SkipSuffix,
+                Attribute::Tuple,
+                Attribute::Attributes,
+                Attribute::Doc,
+                Attribute::Collector,
+                Attribute::Skip,
+                Attribute::Visibility,
+            ];
+
+            let mut conflicts = CONFLICT.iter().filter(|a| self.set[a.index()]);
+            if let Some(next) = conflicts.next() {
+                bail!(assoc.span() =>
+                    "The following attributes can not be used on a field marked as `{}`: {}{}",
+                    Attribute::Associated.as_str(),
+                    next.as_str(),
+                    conflicts.fold(String::new(), |mut s, c| {
+                        write!(s, ", {}", c.as_str()).expect("Write to string can't fail");
+                        s
+                    })
                 );
             }
         }

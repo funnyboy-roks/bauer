@@ -93,6 +93,7 @@
 //!
 //! |   Attribute                            | Description                                                                                                 | Usage                              |
 //! | -------------------------------------- | ----------------------------------------------------------------------------------------------------------- | ---------------------------------- |
+//! | [`associated`]                         | Mark this field as associated data with the builder.  Associated fields are specified by the `builder_fn`.  | `associated`                       |
 //! | [`skip`]                               | Skip this field in the builder.  No other attributes may be specified when this is used.                    | `skip` or `skip = <value>`         |
 //! | [`visibility`][field_vis]              | Change visibility of the generated function (defaults to the same visibility as the builder)                | `visibility = pub(crate)`          |
 //! | [`default`]                            | Specify a default value or use [`Default`]                                                                  | `default` or `default = <value>`   |
@@ -107,6 +108,7 @@
 //! | [`attribute`/`attributes`][field_attr] | Set attribute(s) on the function generated for this field                                                   | `attribute(#[foo])`                |
 //! | [`doc`/`docs`][field_doc]              | Set documentation items on the function generated for this field                                            | `doc(<doc strings>)`               |
 //!
+//! [`associated`]: Builder#associated
 //! [`skip`]: Builder#skip
 //! [field_vis]: Builder#visibility-1
 //! [`default`]: Builder#default
@@ -573,6 +575,48 @@
 /// ```
 ///
 /// # Fields Attributes
+///
+/// ## **`associated`**
+///
+/// Mark a field as associated data for the builder.  Associated fields are added as arguments to
+/// the builder function (and the builder's `new` function).
+///
+/// Multiple associated fields may be provided and they will need to specified in the builder
+/// function in the same order as the fields.
+///
+/// The following attributes do _not_ work on associated functions:
+///
+/// - `default`
+/// - `repeat`
+/// - `repeat_n`
+/// - `skip_prefix`
+/// - `skip_suffix`
+/// - `tuple`
+/// - `attributes`
+/// - `doc`
+/// - `collector`
+/// - `skip`
+/// - `visibility`
+///
+/// ```
+/// # use bauer_macros::Builder;
+/// #[derive(Builder)]
+/// pub struct Foo {
+///     #[builder(associated)]
+///     assoc_a: u32,
+///     #[builder(associated, into)]
+///     assoc_b: String,
+///     field_a: String
+/// }
+///
+/// let foo = Foo::builder(42, "hello")
+///     .field_a("world".to_string())
+///     .build()?;
+/// assert_eq!(foo.assoc_a, 42);
+/// assert_eq!(foo.assoc_b, "hello");
+/// assert_eq!(foo.field_a, "world");
+/// # Ok::<_, Box<dyn std::error::Error>>(())
+/// ```
 ///
 /// ## **`skip`**
 ///
