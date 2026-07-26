@@ -1,5 +1,5 @@
 error[E0599]: no method named `build` found for struct `FooBuilder<Foo_Field_Set<false>>` in the current scope
- --> tests/ui/unwrapped-type-state.fail.rs:9:20
+ --> tests/ui/wrapped-type-state.fail.rs:9:20
   |
 1 | #[derive(bauer::Builder)]
   |          -------------- method `build` not found for this struct

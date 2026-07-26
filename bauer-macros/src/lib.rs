@@ -1,6 +1,5 @@
 #![doc = include_str!("../README.md")]
 
-use attr::field::UnwrappedType;
 use proc_macro::TokenStream;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{ToTokens, format_ident, quote, quote_spanned};
@@ -12,7 +11,7 @@ use util::stricter_visibility;
 
 use crate::{
     attr::builder::{BuilderAttr, Kind},
-    attr::field::{BuilderField, Len, Repeat},
+    attr::field::{BuilderField, Len, Repeat, WrappedType},
     util::parallel_assign,
 };
 
@@ -241,13 +240,13 @@ fn gen_error_enum(fields: &[BuilderField]) -> (Vec<TokenStream2>, Vec<TokenStrea
                 ));
             }
 
-            if let UnwrappedType::Repeat(
+            if let WrappedType::Repeat(
                 _,
                 Repeat {
                     len: Len::Raw { pattern, error },
                     ..
                 },
-            ) = &f.unwrapped_ty
+            ) = &f.wrapped_ty
             {
                 let error_msg = format!(
                     "Invalid number of repeat arguments provided.  Expected {}, got {{}}",
@@ -341,19 +340,19 @@ pub fn builder(input: TokenStream) -> TokenStream {
                 return (f.ty.to_token_stream(), value);
             }
 
-            match &f.unwrapped_ty {
-                UnwrappedType::None => {
+            match &f.wrapped_ty {
+                WrappedType::None => {
                     let ty = &f.ty;
                     (
                         quote! { ::core::option::Option<#ty> },
                         quote! { ::core::option::Option::None },
                     )
                 }
-                UnwrappedType::Option(ty) => (
+                WrappedType::Option(ty) => (
                     quote! { ::core::option::Option<#ty> },
                     quote! { ::core::option::Option::None },
                 ),
-                UnwrappedType::Repeat(
+                WrappedType::Repeat(
                     ty,
                     Repeat {
                         array: true, len, ..
@@ -371,7 +370,7 @@ pub fn builder(input: TokenStream) -> TokenStream {
                         quote! { #private_module::PushableArray::new() },
                     )
                 }
-                UnwrappedType::Repeat(inner_ty, Repeat { array: false, .. }) => (
+                WrappedType::Repeat(inner_ty, Repeat { array: false, .. }) => (
                     quote! { ::std::vec::Vec<#inner_ty> },
                     quote! { ::std::vec::Vec::new() },
                 ),
@@ -402,11 +401,11 @@ pub fn builder(input: TokenStream) -> TokenStream {
             quote! {
                 inner.#field_i #clone
             }
-        } else if !field.unwrapped_ty.is_none() {
-            match &field.unwrapped_ty {
-                UnwrappedType::None => unreachable!("Checked in if branch"),
-                UnwrappedType::Option(_) => quote! { inner.#field_i.take() },
-                UnwrappedType::Repeat(inner_ty, rep @ Repeat { collector, .. }) => {
+        } else if !field.wrapped_ty.is_none() {
+            match &field.wrapped_ty {
+                WrappedType::None => unreachable!("Checked in if branch"),
+                WrappedType::Option(_) => quote! { inner.#field_i.take() },
+                WrappedType::Repeat(inner_ty, rep @ Repeat { collector, .. }) => {
                     if let Len::Raw { pattern, error } = &rep.len {
                         let value = if rep.array {
                             quote_spanned! { inner_ty.span()=> {
