@@ -97,6 +97,7 @@
 //! | [`skip`]                               | Skip this field in the builder.  No other attributes may be specified when this is used.                    | `skip` or `skip = <value>`         |
 //! | [`visibility`][field_vis]              | Change visibility of the generated function (defaults to the same visibility as the builder)                | `visibility = pub(crate)`          |
 //! | [`default`]                            | Specify a default value or use [`Default`]                                                                  | `default` or `default = <value>`   |
+//! | [`required`]                           | Make an `Option` field required to be specified as `Some(value)` or `None`                                  | `required`                         |
 //! | [`repeat`]                             | Allow repating call to add items to a structure                                                             | `repeat` or `repeat = <type>`      |
 //! | [`repeat_n`]                           | Contorl the number times a `repeat` field is allowed to be set.  This controls the length of the final data | `repeat_n = 1..` or `repeat_n = 4` |
 //! | [`collector`]                          | Use a custom collector for converting into the target data structure (default: [`FromIterator::from_iter`]) | `collector = <function>`           |
@@ -112,6 +113,7 @@
 //! [`skip`]: Builder#skip
 //! [field_vis]: Builder#visibility-1
 //! [`default`]: Builder#default
+//! [`required`]: Builder#required
 //! [`repeat`]: Builder#repeat
 //! [`repeat_n`]: Builder#repeat_n
 //! [`collector`]: Builder#collector
@@ -692,6 +694,33 @@
 ///     .build();
 /// assert_eq!(foo.a, 42);
 /// assert_eq!(foo.b, std::f32::consts::PI);
+/// ```
+///
+/// ## **`repeat`**
+///
+/// Change the behaviour of fields with type `Option<T>` to making it required to be specified as
+/// `Some(value)` or `None`.
+///
+/// ```
+/// # use bauer_macros::Builder;
+/// #[derive(Builder)]
+/// pub struct Foo {
+///     #[builder(required)]
+///     field: Option<char>,
+/// }
+///
+/// let foo = Foo::builder()
+///     .field(Some('a'))
+///     .build()?;
+///
+/// assert_eq!(foo.field, Some('a'));
+///
+/// let bar = Foo::builder()
+///     .field(None)
+///     .build()?;
+///
+/// assert_eq!(bar.field, None);
+/// # Ok::<_, Box<dyn std::error::Error>>(())
 /// ```
 ///
 /// ## **`repeat`**
