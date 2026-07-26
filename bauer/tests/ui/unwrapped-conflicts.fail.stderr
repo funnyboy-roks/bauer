@@ -1,0 +1,41 @@
+error: `required` may only be used on `Option` types.
+ --> tests/ui/unwrapped-conflicts.fail.rs:3:15
+  |
+3 |     #[builder(required)] // invalid
+  |               ^^^^^^^^
+
+error: `required` may only be used on `Option` types.
+ --> tests/ui/unwrapped-conflicts.fail.rs:5:15
+  |
+5 |     #[builder(required)] // invalid
+  |               ^^^^^^^^
+
+error: `required` may only be used on `Option` types.
+ --> tests/ui/unwrapped-conflicts.fail.rs:7:15
+  |
+7 |     #[builder(required)] // invalid
+  |               ^^^^^^^^
+
+error: `required` may only be used on `Option` types.
+ --> tests/ui/unwrapped-conflicts.fail.rs:9:15
+  |
+9 |     #[builder(required)] // invalid
+  |               ^^^^^^^^
+
+error: `required` may only be used on `Option` types.
+  --> tests/ui/unwrapped-conflicts.fail.rs:17:23
+   |
+17 |     #[builder(repeat, required)] // invalid
+   |                       ^^^^^^^^
+
+error: `required` may only be used on `Option` types.
+  --> tests/ui/unwrapped-conflicts.fail.rs:19:23
+   |
+19 |     #[builder(repeat, required)] // invalid
+   |                       ^^^^^^^^
+
+error: `required` may only be used on `Option` types.
+  --> tests/ui/unwrapped-conflicts.fail.rs:29:15
+   |
+29 |     #[builder(required)] // invalid (we only check for Option<T>)
+   |               ^^^^^^^^
