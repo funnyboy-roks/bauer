@@ -5,7 +5,7 @@ use proc_macro2::{Span, TokenStream};
 use quote::{ToTokens, format_ident, quote, quote_spanned};
 use strum::{AsRefStr, IntoStaticStr, VariantArray};
 use syn::{
-    Expr, ExprClosure, Field, Ident, Index, LitStr, Pat, Path, Token, TraitBound, Type, Visibility,
+    Expr, ExprClosure, Ident, Index, LitStr, Pat, Path, Token, TraitBound, Type, Visibility,
     parenthesized,
     parse::{Parse, ParseStream},
     parse_quote, parse_quote_spanned,
@@ -137,6 +137,7 @@ enum Attribute {
     Skip,
     Visibility,
     Associated,
+    Required,
 }
 
 impl Attribute {
@@ -179,6 +180,7 @@ impl Attribute {
             Attribute::Skip => true,
             Attribute::Visibility => true,
             Attribute::Associated => true,
+            Attribute::Required => true,
         }
     }
 
@@ -224,13 +226,42 @@ impl FieldIdents {
     }
 }
 
+/// A type which has an inner value for which we have special handling
+#[derive(Debug, Default, strum::EnumIs, Clone)]
+pub enum UnwrappedType {
+    #[default]
+    None,
+    Option(Type),
+    Repeat(Type, Repeat),
+}
+
+impl UnwrappedType {
+    /// Whether this type is allowed to be ommitted in the builder.  If `true`, then it does not
+    /// need to be specified.  `false` does not mean it is required.
+    pub const fn is_optional(&self) -> bool {
+        match self {
+            Self::None => false,
+            Self::Option(_) => true,
+            Self::Repeat(_, _) => false,
+        }
+    }
+
+    pub fn repeat(&self) -> Option<(&Type, &Repeat)> {
+        match self {
+            UnwrappedType::None => None,
+            UnwrappedType::Option(_) => None,
+            UnwrappedType::Repeat(ty, repeat) => Some((ty, repeat)),
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct BuilderField {
     pub ident: Ident,
     pub ty: Type,
+    pub unwrapped_ty: UnwrappedType,
     pub attr: FieldAttr,
     pub missing_err: Option<Ident>,
-    pub wrapped_option: bool,
     pub idents: FieldIdents,
     pub tuple_index: usize,
 }
@@ -260,15 +291,6 @@ impl BuilderField {
         }})
     }
 
-    pub fn wrapped_type(&self) -> Type {
-        if self.wrapped_option {
-            let ty = &self.ty;
-            parse_quote! { ::core::option::Option<#ty> }
-        } else {
-            self.ty.clone()
-        }
-    }
-
     pub fn tuple_index(&self) -> syn::Index {
         syn::Index {
             index: self.tuple_index as _,
@@ -277,15 +299,15 @@ impl BuilderField {
     }
 
     pub fn arg_ty(&self) -> &Type {
-        self.attr
-            .repeat
-            .as_ref()
-            .map(|r| &r.inner_ty)
-            .unwrap_or(&self.ty)
+        match &self.unwrapped_ty {
+            UnwrappedType::None => &self.ty,
+            UnwrappedType::Option(ty) => ty,
+            UnwrappedType::Repeat(ty, _) => ty,
+        }
     }
 
     pub fn optional(&self) -> bool {
-        self.wrapped_option || self.attr.default.is_some()
+        self.unwrapped_ty.is_optional() || self.attr.default.is_some()
     }
 
     pub fn arg_name(&self) -> &Ident {
@@ -366,7 +388,7 @@ impl BuilderField {
 
         let field_i = self.tuple_index();
 
-        let setter = if self.attr.repeat.is_some() {
+        let setter = if self.unwrapped_ty.is_repeat() {
             quote! { let _ = self.#inner.#field_i.push(value) }
         } else {
             quote! { self.#inner.#field_i = Some(value) }
@@ -387,34 +409,34 @@ impl BuilderField {
     }
 
     pub fn parse(
-        value: &Field,
+        field: &syn::Field,
         builder_attr: &BuilderAttr,
         struct_name: &Ident,
         tuple_index: &mut usize,
         errors: &mut Vec<syn::Error>,
     ) -> Self {
-        let ident = value.ident.as_ref().expect("We only support named fields");
+        let ident = field.ident.as_ref().expect("We only support named fields");
 
-        let (ty, wrapped_option) = if let Some(ty) = get_single_generic(&value.ty, Some("Option")) {
-            (ty, true)
-        } else {
-            (&value.ty, false)
-        };
+        let mut unwrapped_ty = get_single_generic(&field.ty, Some("Option"))
+            .cloned()
+            .map(UnwrappedType::Option)
+            .unwrap_or_default();
 
         let mut attr: FieldAttr = {
             let mut out = FieldAttr::new(builder_attr.vis.clone());
 
             for on in &builder_attr.on {
-                match on.apply(&value.ty) {
+                match on.apply(&field.ty) {
                     Ok(Some(replaced)) => {
-                        match syn::parse::Parser::parse2(
+                        let res = syn::parse::Parser::parse2(
                             |input: ParseStream| {
-                                out.parse(input, builder_attr, value, wrapped_option)
+                                out.parse(input, builder_attr, field, &mut unwrapped_ty)
                             },
                             replaced,
-                        ) {
-                            Ok(()) => {}
-                            Err(e) => errors.push(e),
+                        );
+
+                        if let Err(e) = res {
+                            errors.push(e)
                         }
                     }
                     Ok(None) => {}
@@ -422,9 +444,9 @@ impl BuilderField {
                 }
             }
 
-            for attr in value.attrs.iter().filter(|a| a.path().is_ident("builder")) {
+            for attr in field.attrs.iter().filter(|a| a.path().is_ident("builder")) {
                 let res = attr.parse_args_with(|input: ParseStream| {
-                    out.parse(input, builder_attr, value, wrapped_option)
+                    out.parse(input, builder_attr, field, &mut unwrapped_ty)
                 });
 
                 if let Err(e) = res {
@@ -436,8 +458,8 @@ impl BuilderField {
         };
 
         if !attr.attributes.iter().any(|a| a.path().is_ident("doc")) {
-            attr.attributes.reserve(value.attrs.len());
-            value
+            attr.attributes.reserve(field.attrs.len());
+            field
                 .attrs
                 .iter()
                 .filter(|a| a.path().is_ident("doc"))
@@ -453,8 +475,9 @@ impl BuilderField {
 
         BuilderField {
             ident: ident.clone(),
-            ty: ty.clone(),
-            missing_err: if attr.default.is_none() && attr.repeat.is_none() && !wrapped_option {
+            ty: field.ty.clone(),
+            unwrapped_ty: unwrapped_ty.clone(),
+            missing_err: if attr.default.is_none() && unwrapped_ty.is_none() {
                 let mut ident = format_ident!(
                     "Missing{}",
                     ident
@@ -462,13 +485,12 @@ impl BuilderField {
                         .trim_start_matches("r#")
                         .to_case(Case::Pascal)
                 );
-                ident.set_span(value.ident.as_ref().unwrap().span());
+                ident.set_span(field.ident.as_ref().unwrap().span());
                 Some(ident)
             } else {
                 None
             },
             attr,
-            wrapped_option,
             idents: FieldIdents::new(struct_name, ident),
             tuple_index: this_tuple_index,
         }
@@ -726,7 +748,7 @@ impl TryFrom<syn::Pat> for Len {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 #[allow(clippy::large_enum_variant)] // not relly important
 pub enum Collector {
     FromIterator {
@@ -778,9 +800,8 @@ impl Collector {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Repeat {
-    pub inner_ty: Type,
     pub len: Len,
     pub array: bool,
     pub collector: Collector,
@@ -895,7 +916,6 @@ pub struct FieldAttr {
     pub skip: Skip,
     pub default: Option<DefaultAttr>,
     pub into: Option<Span>,
-    pub repeat: Option<Repeat>,
     pub rename: Option<Ident>,
     pub skip_prefix: bool,
     pub skip_suffix: bool,
@@ -916,7 +936,6 @@ impl FieldAttr {
             skip: Default::default(),
             default: Default::default(),
             into: Default::default(),
-            repeat: Default::default(),
             rename: Default::default(),
             skip_prefix: Default::default(),
             skip_suffix: Default::default(),
@@ -965,8 +984,8 @@ impl FieldAttr {
         &mut self,
         input: syn::parse::ParseStream,
         builder_attr: &BuilderAttr,
-        field: &Field,
-        wrapped_option: bool,
+        field: &syn::Field,
+        unwrapped_type: &mut UnwrappedType,
     ) -> syn::Result<()> {
         let field_ident = field.ident.as_ref().unwrap();
 
@@ -982,11 +1001,11 @@ impl FieldAttr {
 
             match attr {
                 Attribute::Default => {
-                    if self.repeat.is_some() {
+                    if unwrapped_type.is_repeat() {
                         bail!(ident.span() => "`default` cannot be added with `repeat`");
                     }
 
-                    if wrapped_option {
+                    if unwrapped_type.is_option() {
                         bail!(ident.span() => "`default` may not be used on `Option` fields");
                     }
 
@@ -1064,15 +1083,17 @@ impl FieldAttr {
                         }
                     };
 
-                    self.repeat = Some(Repeat {
-                        inner_ty: inner_ty.clone(),
-                        len,
-                        array,
-                        collector: Collector::FromIterator { inner_ty },
-                    });
+                    *unwrapped_type = UnwrappedType::Repeat(
+                        inner_ty.clone(),
+                        Repeat {
+                            len,
+                            array,
+                            collector: Collector::FromIterator { inner_ty },
+                        },
+                    );
                 }
                 Attribute::RepeatN => {
-                    let Some(rep) = &mut self.repeat else {
+                    let UnwrappedType::Repeat(_, rep) = unwrapped_type else {
                         bail!(ident.span() => "`repeat_n` may only be used with `repeat`");
                     };
 
@@ -1122,11 +1143,8 @@ impl FieldAttr {
 
                     let tuple = match &field.ty {
                         Type::Tuple(tuple) => tuple,
-                        _ => match &self.repeat {
-                            Some(Repeat {
-                                inner_ty: Type::Tuple(tuple),
-                                ..
-                            }) => tuple,
+                        _ => match unwrapped_type {
+                            UnwrappedType::Repeat(Type::Tuple(tuple), _) => tuple,
                             _ => {
                                 bail!(ident.span() => "`tuple` may only be used on fields that are tuples");
                             }
@@ -1191,7 +1209,7 @@ impl FieldAttr {
                     }
                 }
                 Attribute::Collector => {
-                    let Some(repeat) = &mut self.repeat else {
+                    let UnwrappedType::Repeat(ty, repeat) = unwrapped_type else {
                         bail!(ident.span() => "`collector` may only be used with `repeat`");
                     };
 
@@ -1204,7 +1222,7 @@ impl FieldAttr {
 
                     repeat.collector = Collector::Custom {
                         collector,
-                        inner_ty: repeat.inner_ty.clone(),
+                        inner_ty: ty.clone(),
                         field_ty: field.ty.clone(),
                     };
                 }
@@ -1226,6 +1244,14 @@ impl FieldAttr {
                 Attribute::Associated => {
                     self.associated = Some(ident);
                 }
+                Attribute::Required => match unwrapped_type {
+                    UnwrappedType::None | UnwrappedType::Repeat(_, _) => {
+                        bail!(ident.span() => "`required` may only be used on `Option` types.")
+                    }
+                    UnwrappedType::Option(_) => {
+                        *unwrapped_type = UnwrappedType::None;
+                    }
+                },
             }
             n_attr += 1;
 
@@ -1260,6 +1286,7 @@ impl FieldAttr {
                 Attribute::Collector,
                 Attribute::Skip,
                 Attribute::Visibility,
+                Attribute::Required,
             ];
 
             let mut conflicts = CONFLICT.iter().filter(|a| self.set[a.index()]);

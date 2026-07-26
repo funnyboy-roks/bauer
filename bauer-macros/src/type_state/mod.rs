@@ -9,7 +9,7 @@ use syn::{
 
 use crate::{
     BuilderAttr, BuilderField, Len, Repeat,
-    attr::field::FieldIdents,
+    attr::field::{FieldIdents, UnwrappedType},
     builder_args,
     type_state::generics::{CustomImplGenerics, CustomTypeGenerics},
     util::{ReplaceTrait, ensure_no_conflict, known_idents, parallel_assign},
@@ -33,75 +33,87 @@ fn build_fn(
 
     let not_skipped_field_values = fields.iter().filter(|f| !f.should_skip()).map(|field| {
         let name = &field.ident;
-        let wrapped_ty = field.wrapped_type();
+        let wrapped_ty = &field.ty;
         let pascal = &field.idents.pascal;
         let field_i = field.tuple_index();
 
-        let value = if field.is_associated() {
-            quote! { inner.#field_i }
-        } else if let Some(Repeat {
-            inner_ty,
-            len: Len::Int { .. },
-            array,
-            collector,
-        }) = &field.attr.repeat
-        {
-            let value = if *array {
-                quote! { array }
-            } else {
-                assert!(!builder_attr.konst);
-                assert!(!*array);
-                collector.collect(parse_quote_spanned! { inner_ty.span()=>
-                    array.into_iter()
-                })
-            };
+        if field.is_associated() {
+            return quote! {{
+                let #name: #wrapped_ty = inner.#field_i;
+                #name
+            }};
+        };
 
-            quote_spanned! {
-                inner_ty.span() =>
-                {
-                    // SAFETY: The build function can only be called once the array has been
-                    // filled and is fully initialised.
-                    let array = unsafe { inner.#field_i.assume_init() };
-                    #value
-                }
-            }
-        } else if let Some(Repeat {
-            inner_ty,
-            collector,
-            array,
-            ..
-        }) = &field.attr.repeat
-        {
-            assert!(!builder_attr.konst);
-            assert!(!*array);
-            collector.collect(parse_quote_spanned! { inner_ty.span()=> {
-                let _: &::std::vec::Vec<_> = &inner.#field_i; // assert that the types are correct
-                inner.#field_i.into_iter()
-            }})
-        } else if field.wrapped_option {
-            quote! { inner.#field_i }
-        } else if let Some(default) = &field.attr.default {
-            let default = default.to_value(field.attr.into);
+        let value = match field.unwrapped_ty {
+            UnwrappedType::None => {
+                if let Some(default) = &field.attr.default {
+                    let default = default.to_value(field.attr.into);
 
-            quote_spanned! {field.ty.span()=>
-                // TODO: make this a function once const traits are stable
-                if <#pascal as #private_module::state::BuilderState>::SET {
-                    // SAFETY: If #pascal::SET is true, then we have already set #field_i
-                    unsafe { inner.#field_i.assume_init() }
+                    quote_spanned! {field.ty.span()=>
+                        // TODO: make this a function once const traits are stable
+                        if <#pascal as #private_module::state::BuilderState>::SET {
+                            // SAFETY: If #pascal::SET is true, then we have already set #field_i
+                            unsafe { inner.#field_i.assume_init() }
+                        } else {
+                            #default
+                        }
+                    }
                 } else {
-                    #default
+                    quote! {
+                        // SAFETY: This function is only accessible if all required fields are set.  This
+                        // is enusred by the type bounds.
+                        unsafe { inner.#field_i.assume_init() }
+                    }
                 }
             }
-        } else {
-            quote! {
-                // SAFETY: This function is only accessible if all required fields are set.  This
-                // is enusred by the type bounds.
-                unsafe { inner.#field_i.assume_init() }
+            UnwrappedType::Option(_) => quote! { inner.#field_i },
+            UnwrappedType::Repeat(
+                ref inner_ty,
+                Repeat {
+                    len: Len::Int { .. },
+                    array,
+                    ref collector,
+                },
+            ) => {
+                let value = if array {
+                    quote! { array }
+                } else {
+                    assert!(!builder_attr.konst);
+                    assert!(!array);
+                    collector.collect(parse_quote_spanned! { inner_ty.span()=>
+                        array.into_iter()
+                    })
+                };
+
+                quote_spanned! {
+                    inner_ty.span() =>
+                    {
+                        // SAFETY: The build function can only be called once the array has been
+                        // filled and is fully initialised.
+                        let array = unsafe { inner.#field_i.assume_init() };
+                        #value
+                    }
+                }
+            }
+            UnwrappedType::Repeat(
+                ref inner_ty,
+                Repeat {
+                    array,
+                    ref collector,
+                    ..
+                },
+            ) => {
+                assert!(!builder_attr.konst);
+                assert!(!array);
+                collector.collect(parse_quote_spanned! { inner_ty.span()=> {
+                    let _: &::std::vec::Vec<_> = &inner.#field_i; // assert that the types are correct
+                    inner.#field_i.into_iter()
+                }})
             }
         };
 
         quote! {{
-            let #name: #wrapped_ty = #value;
+            let #name: #wrapped_ty = #value; // assert the type
             #name
         }}
     });
@@ -264,7 +276,7 @@ pub fn type_state_builder(
         .filter(|f| {
             !f.should_skip()
                 && !f.is_associated()
-                && f.attr.repeat.as_ref().is_none_or(|r| r.len.is_some())
+                && f.unwrapped_ty.repeat().is_none_or(|(_, r)| r.len.is_some())
         })
         .collect();
 
@@ -275,7 +287,10 @@ pub fn type_state_builder(
     let private_module = builder_attr.private_module();
     out.extend(generic_fields.iter().map(|&f| {
         let FieldIdents { count, set, .. } = &f.idents;
-        if f.attr.repeat.as_ref().is_some_and(|r| r.len.is_some()) {
+        if f.unwrapped_ty
+            .repeat()
+            .is_some_and(|(_, r)| r.len.is_some())
+        {
             quote! {
                 #[doc(hidden)]
                 #[allow(non_camel_case_types)]
@@ -299,7 +314,7 @@ pub fn type_state_builder(
     let mut len_structs = HashMap::new();
 
     for (i, &f) in generic_fields.iter().enumerate() {
-        let Some(repeat) = &f.attr.repeat else {
+        let UnwrappedType::Repeat(_, repeat) = &f.unwrapped_ty else {
             continue;
         };
 
@@ -321,41 +336,44 @@ pub fn type_state_builder(
         input.generics.split_for_impl();
 
     let field_decls = fields.iter().filter(|f| !f.should_skip()).map(|f| {
-        let ty = &f.ty;
         if f.is_associated() {
-            ty.to_token_stream()
-        } else if let Some(Repeat {
-            inner_ty,
-            len: Len::Int { len },
-            ..
-        }) = &f.attr.repeat
-        {
-            quote! { ::core::mem::MaybeUninit<[#inner_ty; #len]> }
-        } else if let Some(Repeat { inner_ty, .. }) = &f.attr.repeat {
-            quote! { ::std::vec::Vec<#inner_ty> }
-        } else if f.wrapped_option {
-            quote! { ::core::option::Option<#ty> }
-        } else {
-            quote! { ::core::mem::MaybeUninit<#ty> }
+            return f.ty.to_token_stream();
+        }
+
+        match &f.unwrapped_ty {
+            UnwrappedType::None => {
+                let ty = &f.ty;
+                quote! { ::core::mem::MaybeUninit<#ty> }
+            }
+            UnwrappedType::Option(ty) => quote! { ::core::option::Option<#ty> },
+            UnwrappedType::Repeat(
+                ty,
+                Repeat {
+                    len: Len::Int { len },
+                    ..
+                },
+            ) => quote! { ::core::mem::MaybeUninit<[#ty; #len]> },
+            UnwrappedType::Repeat(ty, _) => quote! { ::std::vec::Vec<#ty> },
         }
     });
 
     let init = fields.iter().filter(|f| !f.should_skip()).map(|f| {
         if f.is_associated() {
             let (_, value) = f.attr.to_args_and_value(&f.ty, f.arg_name());
-            value
-        } else if let Some(Repeat {
-            len: Len::Int { .. },
-            ..
-        }) = &f.attr.repeat
-        {
-            quote! { ::core::mem::MaybeUninit::uninit() }
-        } else if let Some(Repeat { .. }) = &f.attr.repeat {
-            quote! { ::std::vec::Vec::new() }
-        } else if f.wrapped_option {
-            quote! { ::core::option::Option::None }
-        } else {
-            quote! { ::core::mem::MaybeUninit::uninit() }
+            return value;
+        }
+
+        match f.unwrapped_ty {
+            UnwrappedType::None => quote! { ::core::mem::MaybeUninit::uninit() },
+            UnwrappedType::Option(_) => quote! { ::core::option::Option::None },
+            UnwrappedType::Repeat(
+                _,
+                Repeat {
+                    len: Len::Int { .. },
+                    ..
+                },
+            ) => quote! { ::core::mem::MaybeUninit::uninit() },
+            UnwrappedType::Repeat(_, _) => quote! { ::std::vec::Vec::new() },
         }
     });
 
@@ -369,7 +387,10 @@ pub fn type_state_builder(
 
     let new_generics = generic_fields.iter().map(|f| {
         let FieldIdents { count, set, .. } = &f.idents;
-        if f.attr.repeat.as_ref().is_some_and(|f| f.len.is_some()) {
+        if f.unwrapped_ty
+            .repeat()
+            .is_some_and(|(_, r)| r.len.is_some())
+        {
             quote! { #count<()> }
         } else {
             quote! { #set<false> }
@@ -464,8 +485,65 @@ pub fn type_state_builder(
         let field_i = f.tuple_index();
         let value_ty = &f.arg_ty();
         let vis = &f.attr.vis;
-        let fun = match &f.attr.repeat {
-            Some(Repeat { len: Len::None, .. }) => {
+
+        let fun = match f.unwrapped_ty {
+            UnwrappedType::None | UnwrappedType::Option(_) => {
+                let impl_generics_fields = CustomImplGenerics::new(
+                    &input.generics,
+                    generic_fields[..i]
+                        .iter()
+                        .chain(generic_fields[i + 1..].iter())
+                        .map(|f| &f.idents.pascal),
+                );
+
+                let FieldIdents { set, .. } = &generic_fields[i].idents;
+                let struct_generics_fields = CustomTypeGenerics::new(
+                    &input.generics,
+                    generic_fields
+                        .iter()
+                        .map(|f| ident_to_type(&f.idents.pascal))
+                        .replace(i, parse_quote! { #set<false> }),
+                );
+
+                let return_struct_generics_fields = CustomTypeGenerics::new(
+                    &input.generics,
+                    generic_fields
+                        .iter()
+                        .map(|f| ident_to_type(&f.idents.pascal))
+                        .replace(i, parse_quote! { #set<true> }),
+                );
+
+                let setter = match f.unwrapped_ty {
+                    UnwrappedType::None => quote! {
+                        this.#inner.#field_i.write(value);
+                    },
+                    UnwrappedType::Option(_) => quote! {
+                        this.#inner.#field_i = Some(value);
+                    },
+                    _ => unreachable!("Checked above"),
+                };
+
+                quote_spanned! {
+                    fn_ident.span() =>
+                    impl #impl_generics_fields #builder #struct_generics_fields #where_clause {
+                        #(#fn_attributes)*
+                        #[allow(clippy::type_complexity)]
+                        #vis #konst fn #fn_ident(self, #args) -> #builder #return_struct_generics_fields {
+                            let value: #value_ty = #value;
+                            let mut this = self; // rather than have `mut self` in the signature
+                            #[allow(deprecated)] // #inner is set to deprecated
+                            {
+                                #setter
+                                #builder {
+                                    #inner: this.#inner,
+                                    #state: ::core::marker::PhantomData,
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            UnwrappedType::Repeat(_, Repeat { len: Len::None, .. }) => {
                 let impl_generics = CustomImplGenerics::new(
                     &input.generics,
                     generic_fields.iter().map(|f| &f.idents.pascal),
@@ -494,7 +572,7 @@ pub fn type_state_builder(
                     }
                 }
             }
-            Some(Repeat { len, .. }) => {
+            UnwrappedType::Repeat(_, Repeat { ref len, .. }) => {
                 let FieldIdents { count, pascal, .. } = &generic_fields[i].idents;
 
                 let impl_generics = CustomImplGenerics::new(
@@ -562,66 +640,10 @@ pub fn type_state_builder(
                     }
                 }
             }
-            None => {
-                let impl_generics_fields = CustomImplGenerics::new(
-                    &input.generics,
-                    generic_fields[..i]
-                        .iter()
-                        .chain(generic_fields[i + 1..].iter())
-                        .map(|f| &f.idents.pascal),
-                );
-
-                let FieldIdents { set, .. } = &generic_fields[i].idents;
-                let struct_generics_fields = CustomTypeGenerics::new(
-                    &input.generics,
-                    generic_fields
-                        .iter()
-                        .map(|f| ident_to_type(&f.idents.pascal))
-                        .replace(i, parse_quote! { #set<false> }),
-                );
-
-                let return_struct_generics_fields = CustomTypeGenerics::new(
-                    &input.generics,
-                    generic_fields
-                        .iter()
-                        .map(|f| ident_to_type(&f.idents.pascal))
-                        .replace(i, parse_quote! { #set<true> }),
-                );
-
-                let setter = if f.wrapped_option {
-                    quote! {
-                        this.#inner.#field_i = Some(value);
-                    }
-                } else {
-                    quote! {
-                        this.#inner.#field_i.write(value);
-                    }
-                };
-
-                quote_spanned! {
-                    fn_ident.span() =>
-                    impl #impl_generics_fields #builder #struct_generics_fields #where_clause {
-                        #(#fn_attributes)*
-                        #[allow(clippy::type_complexity)]
-                        #vis #konst fn #fn_ident(self, #args) -> #builder #return_struct_generics_fields {
-                            let value: #value_ty = #value;
-                            let mut this = self; // rather than have `mut self` in the signature
-                            #[allow(deprecated)] // #inner is set to deprecated
-                            {
-                                #setter
-                                #builder {
-                                    #inner: this.#inner,
-                                    #state: ::core::marker::PhantomData,
-                                }
-                            }
-                        }
-                    }
-                }
-            }
         };
 
         out.extend(fun);
-        if f.attr.repeat.as_ref().is_none_or(|r| r.len.is_some()) {
+        if f.unwrapped_ty.repeat().is_none_or(|(_, r)| r.len.is_some()) {
             i += 1;
         }
     }
