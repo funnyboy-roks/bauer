@@ -11,7 +11,7 @@ use util::stricter_visibility;
 
 use crate::{
     attr::builder::{BuilderAttr, Kind},
-    attr::field::{BuilderField, Len, Repeat},
+    attr::field::{BuilderField, Len, Repeat, WrappedType},
     util::parallel_assign,
 };
 
@@ -239,10 +239,14 @@ fn gen_error_enum(fields: &[BuilderField]) -> (Vec<TokenStream2>, Vec<TokenStrea
                     quote! { Self::#err => write!(f, #msg) },
                 ));
             }
-            if let Some(Repeat {
-                len: Len::Raw { pattern, error },
-                ..
-            }) = &f.attr.repeat
+
+            if let WrappedType::Repeat(
+                _,
+                Repeat {
+                    len: Len::Raw { pattern, error },
+                    ..
+                },
+            ) = &f.wrapped_ty
             {
                 let error_msg = format!(
                     "Invalid number of repeat arguments provided.  Expected {}, got {{}}",
@@ -257,6 +261,7 @@ fn gen_error_enum(fields: &[BuilderField]) -> (Vec<TokenStream2>, Vec<TokenStrea
                     },
                 ));
             }
+
             variants.into_iter()
         })
         .collect()
@@ -332,15 +337,27 @@ pub fn builder(input: TokenStream) -> TokenStream {
         .map(|f| {
             if f.is_associated() {
                 let (_, value) = f.attr.to_args_and_value(&f.ty, f.arg_name());
-                (f.ty.to_token_stream(), value)
-            } else if let Some(Repeat {
-                inner_ty,
-                array,
-                len,
-                ..
-            }) = &f.attr.repeat
-            {
-                if *array {
+                return (f.ty.to_token_stream(), value);
+            }
+
+            match &f.wrapped_ty {
+                WrappedType::None => {
+                    let ty = &f.ty;
+                    (
+                        quote! { ::core::option::Option<#ty> },
+                        quote! { ::core::option::Option::None },
+                    )
+                }
+                WrappedType::Option(ty) => (
+                    quote! { ::core::option::Option<#ty> },
+                    quote! { ::core::option::Option::None },
+                ),
+                WrappedType::Repeat(
+                    ty,
+                    Repeat {
+                        array: true, len, ..
+                    },
+                ) => {
                     let pattern = match &len {
                         Len::Raw { pattern, .. } => pattern.to_token_stream(),
                         Len::Int { len } => len.to_token_stream(),
@@ -349,21 +366,14 @@ pub fn builder(input: TokenStream) -> TokenStream {
                         }
                     };
                     (
-                        quote! { #private_module::PushableArray<#pattern, #inner_ty> },
+                        quote! { #private_module::PushableArray<#pattern, #ty> },
                         quote! { #private_module::PushableArray::new() },
                     )
-                } else {
-                    (
-                        quote! { ::std::vec::Vec<#inner_ty> },
-                        quote! { ::std::vec::Vec::new() },
-                    )
                 }
-            } else {
-                let ty = &f.ty;
-                (
-                    quote! { ::core::option::Option<#ty> },
-                    quote! { ::core::option::Option::None },
-                )
+                WrappedType::Repeat(inner_ty, Repeat { array: false, .. }) => (
+                    quote! { ::std::vec::Vec<#inner_ty> },
+                    quote! { ::std::vec::Vec::new() },
+                ),
             }
         })
         .collect();
@@ -378,7 +388,7 @@ pub fn builder(input: TokenStream) -> TokenStream {
 
     let not_skipped_field_values = fields.iter().filter(|f| !f.should_skip()).map(|field| {
         let name = &field.ident;
-        let wrapped_ty = &field.wrapped_type();
+        let wrapped_ty = &field.ty;
         let field_i = field.tuple_index();
 
         let value = if field.is_associated() {
@@ -391,48 +401,52 @@ pub fn builder(input: TokenStream) -> TokenStream {
             quote! {
                 inner.#field_i #clone
             }
-        } else if let Some(rep @ Repeat { inner_ty, collector, .. }) = &field.attr.repeat {
-            if let Len::Raw { pattern, error } = &rep.len {
-                let value = if rep.array {
-                    quote_spanned! { inner_ty.span()=> {
-                        let arr = ::core::mem::replace(&mut inner.#field_i, #private_module::PushableArray::new());
-                        arr.into_array()
-                            .expect("The match ensures the length of this array is correct")
-                    }}
-                } else {
-                    assert!(!rep.array);
-                    assert!(!builder_attr.konst);
-
-                    collector.collect(parse_quote_spanned! {inner_ty.span()=>
-                        inner.#field_i.drain(..)
-                    })
-                };
-
-                if let Pat::Ident(_) = pattern {
-                    quote_spanned! { pattern.span()=>
-                        if inner.#field_i.len() == #pattern {
-                            #value
+        } else if !field.wrapped_ty.is_none() {
+            match &field.wrapped_ty {
+                WrappedType::None => unreachable!("Checked in if branch"),
+                WrappedType::Option(_) => quote! { inner.#field_i.take() },
+                WrappedType::Repeat(inner_ty, rep @ Repeat { collector, .. }) => {
+                    if let Len::Raw { pattern, error } = &rep.len {
+                        let value = if rep.array {
+                            quote_spanned! { inner_ty.span()=> {
+                                let arr = ::core::mem::replace(&mut inner.#field_i, #private_module::PushableArray::new());
+                                arr.into_array()
+                                    .expect("The match ensures the length of this array is correct")
+                            }}
                         } else {
-                            return Err(#build_err::#error(self.#inner.#field_i.len()));
+                            assert!(!rep.array);
+                            assert!(!builder_attr.konst);
+
+                            collector.collect(parse_quote_spanned! {inner_ty.span()=>
+                                inner.#field_i.drain(..)
+                            })
+                        };
+
+                        if let Pat::Ident(_) = pattern {
+                            quote_spanned! { pattern.span()=>
+                                if inner.#field_i.len() == #pattern {
+                                    #value
+                                } else {
+                                    return Err(#build_err::#error(self.#inner.#field_i.len()));
+                                }
+                            }
+                        } else {
+                            quote_spanned! { pattern.span()=>
+                                match inner.#field_i.len() {
+                                    #pattern => #value,
+                                    len => return Err(#build_err::#error(len)),
+                                }
+                            }
                         }
+                    } else {
+                        assert!(!rep.array);
+                        assert!(!builder_attr.konst);
+                        collector.collect(parse_quote_spanned! {inner_ty.span()=>
+                            inner.#field_i.drain(..)
+                        })
                     }
-                } else {
-                    quote_spanned! { pattern.span()=>
-                        match inner.#field_i.len() {
-                            #pattern => #value,
-                            len => return Err(#build_err::#error(len)),
-                        }
-                    }
-                }
-            } else {
-                assert!(!rep.array);
-                assert!(!builder_attr.konst);
-                collector.collect(parse_quote_spanned! {inner_ty.span()=>
-                    inner.#field_i.drain(..)
-                })
+                },
             }
-        } else if field.wrapped_option {
-            quote! { inner.#field_i.take() }
         } else if let Some(default) = &field.attr.default {
             let default = default.to_value(field.attr.into);
             quote! {

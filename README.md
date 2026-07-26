@@ -106,6 +106,7 @@ All of the attributes that may be applied to fields are listed below.  These go 
 | [`skip`]                               | Skip this field in the builder.  No other attributes may be specified when this is used.                    | `skip` or `skip = <value>`         |
 | [`visibility`][field_vis]              | Change visibility of the generated function (defaults to the same visibility as the builder)                | `visibility = pub(crate)`          |
 | [`default`]                            | Specify a default value or use [`Default`]                                                                  | `default` or `default = <value>`   |
+| [`required`]                           | Make an `Option` field required to be specified as `Some(value)` or `None`                                  | `required`                         |
 | [`repeat`]                             | Allow repating call to add items to a structure                                                             | `repeat` or `repeat = <type>`      |
 | [`repeat_n`]                           | Contorl the number times a `repeat` field is allowed to be set.  This controls the length of the final data | `repeat_n = 1..` or `repeat_n = 4` |
 | [`collector`]                          | Use a custom collector for converting into the target data structure (default: [`FromIterator::from_iter`]) | `collector = <function>`           |
@@ -121,6 +122,7 @@ All of the attributes that may be applied to fields are listed below.  These go 
 [`skip`]: https://docs.rs/bauer/latest/bauer/derive.Builder.html#skip
 [field_vis]: https://docs.rs/bauer/latest/bauer/derive.Builder.html#visibility-1
 [`default`]: https://docs.rs/bauer/latest/bauer/derive.Builder.html#default
+[`required`]: https://docs.rs/bauer/latest/bauer/derive.Builder.html#required
 [`repeat`]: https://docs.rs/bauer/latest/bauer/derive.Builder.html#repeat
 [`repeat_n`]: https://docs.rs/bauer/latest/bauer/derive.Builder.html#repeat_n
 [`collector`]: https://docs.rs/bauer/latest/bauer/derive.Builder.html#collector

@@ -31,6 +31,8 @@ pub struct Foo {
     pub field_j: String,
     #[builder(skip = field_i.len() + field_j.len() + field_h.len() + 1)]
     pub field_k: usize,
+    #[builder(required)]
+    pub field_l: Option<String>,
 }
 
 fn main() {
@@ -46,6 +48,7 @@ fn main() {
         .field_i(6)
         .field_j('h')
         .field_j('i')
+        .field_l(Some("required".to_string()))
         .build()
         .unwrap();
 
@@ -65,6 +68,7 @@ fn main() {
             field_i: vec![4, 5, 6],
             field_j: String::from("hi"),
             field_k: 8,
+            field_l: Some(String::from("required")),
         }
     );
 }
