@@ -228,6 +228,7 @@ impl FieldIdents {
 
 /// A type which has an inner value for which we have special handling
 #[derive(Debug, Default, strum::EnumIs, Clone)]
+#[allow(clippy::large_enum_variant)]
 pub enum UnwrappedType {
     #[default]
     None,
