@@ -240,28 +240,27 @@ fn gen_error_enum(fields: &[BuilderField]) -> (Vec<TokenStream2>, Vec<TokenStrea
                     quote! { Self::#err => write!(f, #msg) },
                 ));
             }
-            match &f.unwrapped_ty {
-                UnwrappedType::Repeat(
-                    _,
-                    Repeat {
-                        len: Len::Raw { pattern, error },
-                        ..
+
+            if let UnwrappedType::Repeat(
+                _,
+                Repeat {
+                    len: Len::Raw { pattern, error },
+                    ..
+                },
+            ) = &f.unwrapped_ty
+            {
+                let error_msg = format!(
+                    "Invalid number of repeat arguments provided.  Expected {}, got {{}}",
+                    pattern.to_token_stream()
+                );
+                variants.push((
+                    quote! {
+                        #error(usize)
                     },
-                ) => {
-                    let error_msg = format!(
-                        "Invalid number of repeat arguments provided.  Expected {}, got {{}}",
-                        pattern.to_token_stream()
-                    );
-                    variants.push((
-                        quote! {
-                            #error(usize)
-                        },
-                        quote! {
-                            Self::#error(n) => write!(f, #error_msg, n)
-                        },
-                    ));
-                }
-                _ => {}
+                    quote! {
+                        Self::#error(n) => write!(f, #error_msg, n)
+                    },
+                ));
             }
 
             variants.into_iter()
