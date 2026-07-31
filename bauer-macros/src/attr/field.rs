@@ -138,6 +138,7 @@ enum Attribute {
     Visibility,
     Associated,
     Required,
+    Flag,
 }
 
 impl Attribute {
@@ -181,6 +182,7 @@ impl Attribute {
             Attribute::Visibility => true,
             Attribute::Associated => true,
             Attribute::Required => true,
+            Attribute::Flag => true,
         }
     }
 
@@ -232,6 +234,7 @@ impl FieldIdents {
 pub enum WrappedType {
     #[default]
     None,
+    Flag,
     Option(Type),
     Repeat(Type, Repeat),
 }
@@ -242,6 +245,7 @@ impl WrappedType {
     pub const fn is_optional(&self) -> bool {
         match self {
             Self::None => false,
+            Self::Flag => true,
             Self::Option(_) => true,
             Self::Repeat(_, _) => false,
         }
@@ -249,9 +253,10 @@ impl WrappedType {
 
     pub fn repeat(&self) -> Option<(&Type, &Repeat)> {
         match self {
-            WrappedType::None => None,
-            WrappedType::Option(_) => None,
-            WrappedType::Repeat(ty, repeat) => Some((ty, repeat)),
+            Self::None => None,
+            Self::Flag => None,
+            Self::Option(_) => None,
+            Self::Repeat(ty, repeat) => Some((ty, repeat)),
         }
     }
 }
@@ -299,11 +304,12 @@ impl BuilderField {
         }
     }
 
-    pub fn arg_ty(&self) -> &Type {
+    pub fn arg_ty(&self) -> Option<&Type> {
         match &self.wrapped_ty {
-            WrappedType::None => &self.ty,
-            WrappedType::Option(ty) => ty,
-            WrappedType::Repeat(ty, _) => ty,
+            WrappedType::None => Some(&self.ty),
+            WrappedType::Flag => None,
+            WrappedType::Option(ty) => Some(ty),
+            WrappedType::Repeat(ty, _) => Some(ty),
         }
     }
 
@@ -345,9 +351,14 @@ impl BuilderField {
         allow_unused: bool,
         body: impl ToTokens,
     ) -> TokenStream {
-        let ty = self.arg_ty();
+        let args = if let WrappedType::Flag = self.wrapped_ty {
+            TokenStream::new()
+        } else {
+            let ty = self.arg_ty().expect("None iff wrapped_ty != Flag");
+            let (args, _) = self.attr.to_args_and_value(ty, &self.ident);
+            args
+        };
         let fn_ident = self.function_ident(builder_attr);
-        let (args, _) = self.attr.to_args_and_value(ty, &self.ident);
         let self_param = builder_attr.self_param();
         let return_type = builder_attr.return_type();
         let vis = &self.attr.vis;
@@ -382,17 +393,26 @@ impl BuilderField {
     }
 
     pub(crate) fn function(&self, builder_attr: &BuilderAttr, inner: &Ident) -> TokenStream {
-        let field_name = &self.ident;
-
-        let ty = self.arg_ty();
-        let (_, value) = self.attr.to_args_and_value(ty, field_name);
+        let (ty, value) = if let WrappedType::Flag = self.wrapped_ty {
+            (&parse_quote! { bool }, quote! { true })
+        } else {
+            let ty = self.arg_ty().expect("None iff wrapped_ty != Flag");
+            let (_, value) = self.attr.to_args_and_value(ty, &self.ident);
+            (ty, value)
+        };
 
         let field_i = self.tuple_index();
 
-        let setter = if self.wrapped_ty.is_repeat() {
-            quote! { let _ = self.#inner.#field_i.push(value) }
-        } else {
-            quote! { self.#inner.#field_i = Some(value) }
+        let setter = match self.wrapped_ty {
+            WrappedType::Flag => quote! {
+                self.#inner.#field_i = true
+            },
+            WrappedType::Repeat(_, _) => quote! {
+                let _ = self.#inner.#field_i.push(value)
+            },
+            WrappedType::None | WrappedType::Option(_) => quote! {
+                self.#inner.#field_i = Some(value)
+            },
         };
 
         self.wrap_with_signature(
@@ -1246,13 +1266,25 @@ impl FieldAttr {
                     self.associated = Some(ident);
                 }
                 Attribute::Required => match wrapped_type {
-                    WrappedType::None | WrappedType::Repeat(_, _) => {
+                    WrappedType::None | WrappedType::Repeat(_, _) | WrappedType::Flag => {
                         bail!(ident.span() => "`required` may only be used on `Option` types.")
                     }
                     WrappedType::Option(_) => {
                         *wrapped_type = WrappedType::None;
                     }
                 },
+                Attribute::Flag => {
+                    if self.default.is_some() {
+                        bail!(ident.span() => "`flag` cannot be added with `default`");
+                    }
+
+                    match &field.ty {
+                        Type::Path(p) if p.path.is_ident("bool") => {
+                            *wrapped_type = WrappedType::Flag;
+                        }
+                        _ => bail!(ident.span() => "`flag` may only be added on `bool` fields"),
+                    }
+                }
             }
             n_attr += 1;
 
