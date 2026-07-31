@@ -55,77 +55,109 @@
 //!
 //! ## Builder Attributes
 //!
-//! All of the attributes that may be applied to the builder are listed below.  These go inside of
-//! a `#[builder(..)]` attribute.  For a more detailed description and examples, check out the
-//! [`Builder`] or click on the attribute.
+//! All of the attributes that may be applied to the builder are listed below.  These go inside of a
+//! `#[builder(..)]` attribute on the struct itself.  For a more detailed description and examples,
+//! check out the [`Builder`] or click on the attribute.
+//!
+//! ### Builder Configuration
+//!
+//! Attributes that affect the generated struct and other items
 //!
 //! | Attribute                                    | Description                                                                                                 | Usage                                        |
 //! | -------------------------------------------- | ----------------------------------------------------------------------------------------------------------- | -------------------------------------------- |
 //! | [`kind`]                                     | Set the sub-patten to use for this builder                                                                  | `kind = "borrowed"` or `kind = "type-state"` |
 //! | [`const`]                                    | Make this builder work at compile-time -- some limitations are added, but most features continue working    | `const`                                      |
-//! | [`prefix`/`suffix`]                          | Add a prefix/suffix to all field functions created for this builder                                         | `prefix = "set_"` or `suffix = "_field"`     |
 //! | [`visibility`]                               | Change the visibility of the created builder (defaults to the same visibility as the struct)                | `visibility = pub(crate)`                    |
 //! | [`crate`]                                    | Override the name of the crate when expanding macros (defaults to `bauer`)                                  | `crate = bauer_renamed`                      |
-//! | [`attribute`/`attributes`]                   | Set attribute(s) on the generated builder struct                                                            | `attribute(#[foo])`                          |
-//! | [`doc`/`docs`]                               | Set documentation items on the generated builder struct                                                     | `doc(<doc strings>)`                         |
+//! | [`error`]                                    | Set details about the generated error enum (`attributes`, `doc`, `rename`, `force`)                         | `error(...)`                                 |
 //! | [`build_fn`]                                 | Set details about the build function (`attributes`, `doc`, `rename`, `map`)                                 | `build_fn(...)`                              |
 //! | [`builder_fn`]                               | Set details about the builder function added to the struct (`attributes`, `doc`, `rename`)                  | `builder_fn(...)`                            |
-//! | [`error`]                                    | Set details about the generated error enum (`attributes`, `doc`, `rename`, `force`)                         | `error(...)`                                 |
-//! | [`on`]                                       | Apply field attributes to fields that match a specific type pattern                                         | `on(<type> => <attributes ...>)`             |
+//! | [`attribute`/`attributes`]                   | Set attribute(s) on the generated builder struct                                                            | `attribute(#[foo])`                          |
+//! | [`doc`/`docs`]                               | Set documentation items on the generated builder struct                                                     | `doc(<doc strings>)`                         |
 //!
 //! [`kind`]: Builder#kind
 //! [`const`]: Builder#const
-//! [`prefix`/`suffix`]: Builder#prefixsuffix
 //! [`visibility`]: Builder#visibility
 //! [`crate`]: Builder#crate
+//! [`error`]: Builder#error
 //! [`attribute`/`attributes`]: Builder#attributes
 //! [`doc`/`docs`]: Builder#doc
 //! [`build_fn`]: Builder#build_fn
 //! [`builder_fn`]: Builder#builder_fn
-//! [`error`]: Builder#error
+//!
+//! ### Field Configuration
+//!
+//! Attributes affect all functions generated the fields in this struct
+//!
+//! | Attribute                                    | Description                                                                                                 | Usage                                        |
+//! | -------------------------------------------- | ----------------------------------------------------------------------------------------------------------- | -------------------------------------------- |
+//! | [`prefix`/`suffix`]                          | Add a prefix/suffix to all field functions created for this builder                                         | `prefix = "set_"` or `suffix = "_field"`     |
+//! | [`on`]                                       | Apply field attributes to fields that match a specific type pattern                                         | `on(<type> => <attributes ...>)`             |
+//!
+//! [`prefix`/`suffix`]: Builder#prefixsuffix
 //! [`on`]: Builder#on
 //!
 //! ## Field Attributes
 //!
 //! All of the attributes that may be applied to fields are listed below.  These go inside of a
-//! `#[builder(..)]` attribute.  For a more detailed description and examples, check out the
-//! [`Builder`] or click on the attribute.
+//! `#[builder(..)]` attribute on any field in the struct.  For a more detailed description and
+//! examples, check out the [`Builder`] or click on the attribute.
+//!
+//! ### Special Field Treatment
+//!
+//! Attributes that affect how a field is treated by the builder
 //!
 //! |   Attribute                            | Description                                                                                                 | Usage                              |
 //! | -------------------------------------- | ----------------------------------------------------------------------------------------------------------- | ---------------------------------- |
 //! | [`associated`]                         | Mark this field as associated data with the builder.  Associated fields are specified by the `builder_fn`.  | `associated`                       |
-//! | [`skip`]                               | Skip this field in the builder.  No other attributes may be specified when this is used.                    | `skip` or `skip = <value>`         |
-//! | [`visibility`][field_vis]              | Change visibility of the generated function (defaults to the same visibility as the builder)                | `visibility = pub(crate)`          |
-//! | [`default`]                            | Specify a default value or use [`Default`]                                                                  | `default` or `default = <value>`   |
-//! | [`required`]                           | Make an `Option` field required to be specified as `Some(value)` or `None`                                  | `required`                         |
-//! | [`repeat`]                             | Allow repating call to add items to a structure                                                             | `repeat` or `repeat = <type>`      |
-//! | [`repeat_n`]                           | Contorl the number times a `repeat` field is allowed to be set.  This controls the length of the final data | `repeat_n = 1..` or `repeat_n = 4` |
-//! | [`collector`]                          | Use a custom collector for converting into the target data structure (default: [`FromIterator::from_iter`]) | `collector = <function>`           |
-//! | [`into`]                               | Make functions accept `impl `[`Into`]`<Field>`                                                              | `into`                             |
-//! | [`tuple`]                              | Make functions accept tuple items as separate arguments                                                     | `tuple` or `tuple(x, y)`           |
-//! | [`adapter`]                            | Fully cusotmise how functions take arguments and convert them into the field value                          | `adapter = \|<arg>: <ty>\| <expr>` |
-//! | [`rename`]                             | Rename the function that is generated for the field                                                         | `rename = <name>`                  |
-//! | [`flag`]                               | Mark a boolean field as a flag, meaning that the if the function is called, the field will be marked true   | `flag`                             |
-//! | [`skip_prefix`/`skip_suffix`]          | Skip using the prefix/suffix from the builder attribute                                                     | `skip_prefix` or `skip_suffix`     |
-//! | [`attribute`/`attributes`][field_attr] | Set attribute(s) on the function generated for this field                                                   | `attribute(#[foo])`                |
-//! | [`doc`/`docs`][field_doc]              | Set documentation items on the function generated for this field                                            | `doc(<doc strings>)`               |
+//! | [`skip`]                               | Skip this field in the builder and construct its value using the other fields (or default value)            | `skip` or `skip = <value>`         |
 //!
 //! [`associated`]: Builder#associated
 //! [`skip`]: Builder#skip
+//!
+//! ### Field Configuration
+//!
+//! Attributes that affect how fields are presented to the user
+//!
+//! |   Attribute                            | Description                                                                                                 | Usage                              |
+//! | -------------------------------------- | ----------------------------------------------------------------------------------------------------------- | ---------------------------------- |
+//! | [`rename`]                             | Rename the function that is generated for the field                                                         | `rename = <name>`                  |
+//! | [`skip_prefix`/`skip_suffix`]          | Skip using the prefix/suffix from the builder attribute                                                     | `skip_prefix` or `skip_suffix`     |
+//! | [`visibility`][field_vis]              | Change visibility of the generated function (defaults to the same visibility as the builder)                | `visibility = pub(crate)`          |
+//! | [`attribute`/`attributes`][field_attr] | Set attribute(s) on the function generated for this field                                                   | `attribute(#[foo])`                |
+//! | [`doc`/`docs`][field_doc]              | Set documentation items on the function generated for this field                                            | `doc(<doc strings>)`               |
+//!
+//! [`rename`]: Builder#rename
+//! [`skip_prefix`/`skip_suffix`]: Builder#skip_prefixskip_suffix
 //! [field_vis]: Builder#visibility-1
+//! [field_attr]: Builder#attributes-1
+//! [field_doc]: Builder#doc-1
+//!
+//! ### Type Configuration
+//!
+//! Configure how the field's type is constructed or specified by the user
+//!
+//! |   Attribute                            | Description                                                                                                 | Usage                              |
+//! | -------------------------------------- | ----------------------------------------------------------------------------------------------------------- | ---------------------------------- |
+//! | [`adapter`]                            | Fully cusotmise how functions take arguments and convert them into the field value                          | `adapter = \|<arg>: <ty>\| <expr>` |
+//! | [`default`]                            | Specify a default value or use [`Default`]                                                                  | `default` or `default = <value>`   |
+//! | [`required`]                           | Make an `Option` field required to be specified as `Some(value)` or `None`                                  | `required`                         |
+//! | [`flag`]                               | Mark a boolean field as a flag, meaning that the if the function is called, the field will be marked true   | `flag`                             |
+//! | [`into`]                               | Make functions accept `impl `[`Into`]`<Field>`                                                              | `into`                             |
+//! | [`tuple`]                              | Make functions accept tuple items as separate arguments                                                     | `tuple` or `tuple(x, y)`           |
+//! | [`repeat`]                             | Allow repating call to add items to a structure                                                             | `repeat` or `repeat = <type>`      |
+//! | [`repeat_n`]                           | Contorl the number times a `repeat` field is allowed to be set.  This controls the length of the final data | `repeat_n = 1..` or `repeat_n = 4` |
+//! | [`collector`]                          | Use a custom collector for converting into the target data structure (default: [`FromIterator::from_iter`]) | `collector = <function>`           |
+//!
+//! [`adapter`]: Builder#adapter
 //! [`default`]: Builder#default
 //! [`required`]: Builder#required
+//! [`flag`]: Builder#flag
+//! [`into`]: Builder#into
+//! [`tuple`]: Builder#tuple
 //! [`repeat`]: Builder#repeat
 //! [`repeat_n`]: Builder#repeat_n
 //! [`collector`]: Builder#collector
-//! [`into`]: Builder#into
-//! [`tuple`]: Builder#tuple
-//! [`adapter`]: Builder#adapter
-//! [`rename`]: Builder#rename
-//! [`flag`]: Builder#flag
-//! [`skip_prefix`/`skip_suffix`]: Builder#skip_prefixskip_suffix
-//! [field_attr]: Builder#attributes-1
-//! [field_doc]: Builder#doc-1
 
 /// The main macro
 ///
@@ -169,9 +201,13 @@
 ///
 /// # Builder Attributes
 ///
-/// ## **`kind`**
+/// ## Builder Configuration
 ///
-/// ### `"owned"` (default)
+/// ### **`kind`**
+///
+/// Argument: String Literal
+///
+/// #### `"owned"` (default)
 ///
 /// All builder functions accept `self` and return `Self`.
 ///
@@ -189,7 +225,7 @@
 /// # Ok::<_, Box<dyn std::error::Error>>(())
 /// ```
 ///
-/// ### `"borrowed"`
+/// #### `"borrowed"`
 ///
 /// All builder functions accept `&mut self` and return `&mut Self`.
 ///
@@ -215,7 +251,7 @@
 /// assert_eq!(foo.values, [0, 1, 2]);
 /// ```
 ///
-/// ### `"type-state"`
+/// #### `"type-state"`
 ///
 /// The builder and its functions are generated in a way that uses the [type-state pattern].  This
 /// means that things like required fields can be enforced at compile-time and will refuse to
@@ -239,7 +275,9 @@
 /// let foo: Foo = Foo::builder().build(); // fails to compile because `a` is missing
 /// ```
 ///
-/// ## **`const`**
+/// ### **`const`**
+///
+/// Argument: None
 ///
 /// Make the generated builder work at compile-time.
 ///
@@ -267,29 +305,10 @@
 ///     .build();
 /// ```
 ///
-/// ## **`prefix`**/**`suffix`**
+/// ### **`visibility`**
 ///
-/// Default: `prefix = "", suffix = ""`
-///
-/// Set the prefix or suffix for the generated builder functions
-///
-/// ```
-/// # use bauer_macros::Builder;
-/// #[derive(Builder)]
-/// #[builder(prefix = "set_")]
-/// pub struct Foo {
-///     a: u32,
-/// }
-///
-/// let f = Foo::builder()
-///     .set_a(42)
-///     .build()?;
-/// # Ok::<_, Box<dyn std::error::Error>>(())
-/// ```
-///
-/// ## **`visibility`**
-///
-/// Default: visibility of the struct
+/// Argument: Visibility  
+/// Default: Visibility of the struct
 ///
 /// Set the visibility for the generated builder struct
 ///
@@ -305,8 +324,9 @@
 /// }
 /// ```
 ///
-/// ## **`crate`**
+/// ### **`crate`**
 ///
+/// Argument: Identifier  
 /// Default: `bauer`
 ///
 /// The name of this crate in the current crate.  This should only need to be changed if you rename
@@ -321,171 +341,7 @@
 /// }
 /// ```
 ///
-/// ## **`attributes`**
-///
-/// Any attributes specified in `attributes` will be added to the generated builder for this field.
-/// You may also use `attribute` instead of `attributes`.
-///
-/// The contents may be wrapped with either `()` or `{}` and attributes may optionally be separated
-/// using commas.
-///
-/// ```
-/// # use bauer_macros::Builder;
-/// # use attribute::{my_attribute, my_attribute2};
-/// #[derive(Builder)]
-/// #[builder(
-///     attributes(
-///         #[my_attribute]
-///         #[my_attribute2]
-///     ),
-/// )]
-/// pub struct Foo {
-///     field: u32,
-/// }
-/// ```
-///
-/// ## **`doc`**
-///
-/// Add documentation to the generated builder struct or the generated `.build()` function
-///
-/// `#[doc]` attributes may also be added using this attribute, i.e., `doc(hidden)`.
-///
-/// The contents may be wrapped with either `()` or `{}` and attributes may optionally be separated
-/// using commas.
-///
-/// ```
-/// # use bauer_macros::Builder;
-/// # use attribute::{my_attribute, my_attribute2};
-/// #[derive(Builder)]
-/// #[builder(
-///     doc {
-///         /// Some documentation for my field
-///     },
-/// )]
-/// pub struct Foo {
-///     field: u32,
-/// }
-/// ```
-///
-/// ## **`build_fn`**
-///
-/// Specify details surrounding the generated `.build()` function on the builder.  There are a few
-/// attributes that may be specified here:
-///
-/// - `attributes` - Specify attributes to be applied to the build function (see
-///   [`attributes`](#attributes))
-/// - `doc` - Add documentation to the generated build function (see [`doc`](#doc))
-/// - `rename = <name>` - Rename the build function from the default of `build`
-/// - `visibility = <vis>` - Set the visibility for the generated build function (default: visibility of the builder)
-/// - `map = |<var>| -> <type> { <expression> }` - Map the built value into something else in the build function
-///
-/// The contents may be wrapped with either `()` or `{}` and attributes may optionally be separated
-/// using commas.
-///
-/// ```
-/// # use bauer_macros::Builder;
-/// # use attribute::{my_attribute, my_attribute2};
-/// #[derive(Builder)]
-/// #[builder(
-///     build_fn {
-///         attributes {
-///             #[my_attribute]
-///             #[my_attribute2]
-///         },
-///         doc {
-///             /// Some documentation about the build function
-///         },
-///         rename = "finish",
-///     },
-/// )]
-/// pub struct Foo {
-///     field: u32,
-/// }
-///
-/// let foo: Foo = Foo::builder()
-///     .field(3)
-///     .finish()?;
-/// # Ok::<_, Box<dyn std::error::Error>>(())
-/// ```
-///
-/// ### `map`
-///
-/// The `map` attribute can serve a number of purposes:
-///
-/// - Create a builder for a type from another crate
-/// - Run a bit of code before after the struct has been built, but before the builder returns
-/// - Make a builder that acts as a function (see example)
-///
-/// ```
-/// # use bauer_macros::Builder;
-/// fn my_function(x: u32, y: u32, z: u32) -> u32 {
-///     (x + y + z) / 3
-/// }
-///
-/// #[derive(Builder)]
-/// #[builder(
-///     build_fn {
-///         rename = "call",
-///         map = |f| -> u32 { my_function(f.x, f.y, f.z) }
-///     },
-/// )]
-/// pub struct Function {
-///     x: u32,
-///     y: u32,
-///     z: u32,
-/// }
-///
-/// let avg: u32 = Function::builder()
-///     .x(42)
-///     .y(69)
-///     .z(1337)
-///     .call()?;
-///
-/// assert_eq!(avg, 482);
-/// # Ok::<_, Box<dyn std::error::Error>>(())
-/// ```
-///
-/// ## **`builder_fn`**
-///
-/// Specify details surrounding the generated `.builder()` function on the struct.  There are a few
-/// attributes that may be specified here:
-///
-/// - `attributes` - Specify attributes to be applied to the build function (see
-///   [`attributes`](#attributes))
-/// - `doc` - Add documentation to the generated build function (see [`doc`](#doc))
-/// - `rename = <name>` - Rename the build function from the default of `builder`
-/// - `visibility = <vis>` - Set the visibility for the generated builder function (default: visibility of the builder)
-///
-/// The contents may be wrapped with either `()` or `{}` and attributes may optionally be separated
-/// using commas.
-///
-/// ```
-/// # use bauer_macros::Builder;
-/// # use attribute::{my_attribute, my_attribute2};
-/// #[derive(Builder)]
-/// #[builder(
-///     builder_fn {
-///         attributes {
-///             #[my_attribute]
-///             #[my_attribute2]
-///         },
-///         doc {
-///             /// Some documentation about the builder function
-///         },
-///         rename = "renamed_function",
-///     },
-/// )]
-/// pub struct Foo {
-///     field: u32,
-/// }
-///
-/// let foo: Foo = Foo::renamed_function()
-///     .field(3)
-///     .build()?;
-/// # Ok::<_, Box<dyn std::error::Error>>(())
-/// ```
-///
-/// ## **`error`**
+/// ### **`error`**
 ///
 /// Specify details surrounding the generated error type for the builder.  There are a few
 /// attributes that may be specified here:
@@ -528,7 +384,199 @@
 /// # let _ = result;
 /// ```
 ///
-/// ## **`on`**
+/// ### **`build_fn`**
+///
+/// Specify details surrounding the generated `.build()` function on the builder.  There are a few
+/// attributes that may be specified here:
+///
+/// - `attributes` - Specify attributes to be applied to the build function (see
+///   [`attributes`](#attributes))
+/// - `doc` - Add documentation to the generated build function (see [`doc`](#doc))
+/// - `rename = <name>` - Rename the build function from the default of `build`
+/// - `visibility = <vis>` - Set the visibility for the generated build function (default: visibility of the builder)
+/// - `map = |<var>| -> <type> { <expression> }` - Map the built value into something else in the build function
+///
+/// The contents may be wrapped with either `()` or `{}` and attributes may optionally be separated
+/// using commas.
+///
+/// ```
+/// # use bauer_macros::Builder;
+/// # use attribute::{my_attribute, my_attribute2};
+/// #[derive(Builder)]
+/// #[builder(
+///     build_fn {
+///         attributes {
+///             #[my_attribute]
+///             #[my_attribute2]
+///         },
+///         doc {
+///             /// Some documentation about the build function
+///         },
+///         rename = "finish",
+///     },
+/// )]
+/// pub struct Foo {
+///     field: u32,
+/// }
+///
+/// let foo: Foo = Foo::builder()
+///     .field(3)
+///     .finish()?;
+/// # Ok::<_, Box<dyn std::error::Error>>(())
+/// ```
+///
+/// #### `map`
+/// ---
+///
+/// Argument: Closure with return type
+///
+/// The `map` attribute can serve a number of purposes:
+///
+/// - Create a builder for a type from another crate
+/// - Run a bit of code before after the struct has been built, but before the builder returns
+/// - Make a builder that acts as a function (see example)
+///
+/// ```
+/// # use bauer_macros::Builder;
+/// fn my_function(x: u32, y: u32, z: u32) -> u32 {
+///     (x + y + z) / 3
+/// }
+///
+/// #[derive(Builder)]
+/// #[builder(
+///     build_fn {
+///         rename = "call",
+///         map = |f| -> u32 { my_function(f.x, f.y, f.z) }
+///     },
+/// )]
+/// pub struct Function {
+///     x: u32,
+///     y: u32,
+///     z: u32,
+/// }
+///
+/// let avg: u32 = Function::builder()
+///     .x(42)
+///     .y(69)
+///     .z(1337)
+///     .call()?;
+///
+/// assert_eq!(avg, 482);
+/// # Ok::<_, Box<dyn std::error::Error>>(())
+/// ```
+///
+/// ### **`builder_fn`**
+///
+/// Specify details surrounding the generated `.builder()` function on the struct.  There are a few
+/// attributes that may be specified here:
+///
+/// - `attributes` - Specify attributes to be applied to the build function (see
+///   [`attributes`](#attributes))
+/// - `doc` - Add documentation to the generated build function (see [`doc`](#doc))
+/// - `rename = <name>` - Rename the build function from the default of `builder`
+/// - `visibility = <vis>` - Set the visibility for the generated builder function (default: visibility of the builder)
+///
+/// The contents may be wrapped with either `()` or `{}` and attributes may optionally be separated
+/// using commas.
+///
+/// ```
+/// # use bauer_macros::Builder;
+/// # use attribute::{my_attribute, my_attribute2};
+/// #[derive(Builder)]
+/// #[builder(
+///     builder_fn {
+///         attributes {
+///             #[my_attribute]
+///             #[my_attribute2]
+///         },
+///         doc {
+///             /// Some documentation about the builder function
+///         },
+///         rename = "renamed_function",
+///     },
+/// )]
+/// pub struct Foo {
+///     field: u32,
+/// }
+///
+/// let foo: Foo = Foo::renamed_function()
+///     .field(3)
+///     .build()?;
+/// # Ok::<_, Box<dyn std::error::Error>>(())
+/// ```
+///
+/// ### **`attributes`**
+///
+/// Any attributes specified in `attributes` will be added to the generated builder for this field.
+/// You may also use `attribute` instead of `attributes`.
+///
+/// The contents may be wrapped with either `()` or `{}` and attributes may optionally be separated
+/// using commas.
+///
+/// ```
+/// # use bauer_macros::Builder;
+/// # use attribute::{my_attribute, my_attribute2};
+/// #[derive(Builder)]
+/// #[builder(
+///     attributes(
+///         #[my_attribute]
+///         #[my_attribute2]
+///     ),
+/// )]
+/// pub struct Foo {
+///     field: u32,
+/// }
+/// ```
+///
+/// ### **`doc`**
+///
+/// Add documentation to the generated builder struct or the generated `.build()` function
+///
+/// `#[doc]` attributes may also be added using this attribute, i.e., `doc(hidden)`.
+///
+/// The contents may be wrapped with either `()` or `{}` and attributes may optionally be separated
+/// using commas.
+///
+/// ```
+/// # use bauer_macros::Builder;
+/// # use attribute::{my_attribute, my_attribute2};
+/// #[derive(Builder)]
+/// #[builder(
+///     doc {
+///         /// Some documentation for my field
+///     },
+/// )]
+/// pub struct Foo {
+///     field: u32,
+/// }
+/// ```
+///
+/// ## Field Configuration
+///
+/// ### **`prefix`**/**`suffix`**
+///
+/// Argument: String Literal  
+/// Default: `""`
+///
+/// Set the prefix or suffix for the generated builder functions
+///
+/// ```
+/// # use bauer_macros::Builder;
+/// #[derive(Builder)]
+/// #[builder(prefix = "set_")]
+/// pub struct Foo {
+///     a: u32,
+/// }
+///
+/// let f = Foo::builder()
+///     .set_a(42)
+///     .build()?;
+/// # Ok::<_, Box<dyn std::error::Error>>(())
+/// ```
+///
+/// ### **`on`**
+///
+/// Argument: `<type-pattern> => <attributes>`
 ///
 /// Specify a set of [field attributes](#field-attributes) that should be applied to all fields that
 /// match a specific type.
@@ -580,7 +628,11 @@
 ///
 /// # Fields Attributes
 ///
-/// ## **`associated`**
+/// ## Special Field Treatment
+///
+/// ### **`associated`**
+///
+/// Argument: None
 ///
 /// Mark a field as associated data for the builder.  Associated fields are added as arguments to
 /// the builder function (and the builder's `new` function).
@@ -622,13 +674,13 @@
 /// # Ok::<_, Box<dyn std::error::Error>>(())
 /// ```
 ///
-/// ## **`skip`**
+/// ### **`skip`**
 ///
 /// Argument: Optional Expression
 ///
 /// Prevent a field from being in the builder.  If provided with no expression, the value will be
-/// created from [`Default`].  The expression provided may access the values of all other fields
-/// that are not skipped.  These can be accessed like variables using the name of the field.
+/// created from [`Default`].  The expression has access to the other fields in the struct by
+/// reference and may use them to derive its value.
 ///
 /// ```
 /// # use bauer_macros::Builder;
@@ -650,8 +702,58 @@
 /// # Ok::<_, Box<dyn std::error::Error>>(())
 /// ```
 ///
-/// ## **`visibility`**
+/// ## Field Configuration
 ///
+/// ### **`rename`**
+///
+/// Argument: String Literal  
+/// Default: Name of the field
+///
+/// Change the name of the generated function from the default value matching the field name.
+///
+/// Note: This still applies the prefix/suffix.  To skip those use [`skip_prefix`]/[`skip_suffix`]
+///
+/// ```
+/// # use bauer_macros::Builder;
+/// #[derive(Builder)]
+/// pub struct Foo {
+///     #[builder(repeat, rename = "item")]
+///     items: Vec<u32>,
+/// }
+///
+/// let foo = Foo::builder()
+///     .item(0)
+///     .item(1)
+///     .build();
+/// assert_eq!(foo.items, [0, 1]);
+/// ```
+///
+/// ### **`skip_prefix`**/**`skip_suffix`**
+///
+/// Argument: None
+///
+/// If a [`prefix`] or [`suffix`] was set in the builder attributes, skip applying those for this
+/// field.  This is especially useful in combination with [`rename`].
+///
+/// ```
+/// # use bauer_macros::Builder;
+/// #[derive(Builder)]
+/// #[builder(prefix = "set_")]
+/// pub struct Foo {
+///     #[builder(repeat, rename = "item", skip_prefix)]
+///     items: Vec<u32>,
+/// }
+///
+/// let foo = Foo::builder()
+///     .item(0)
+///     .item(1)
+///     .build();
+/// assert_eq!(foo.items, [0, 1]);
+/// ```
+///
+/// ### **`visibility`**
+///
+/// Argument: Visibility  
 /// Default: visibility of the builder
 ///
 /// Set the visibility for the generated function for this field
@@ -668,10 +770,86 @@
 /// }
 /// ```
 ///
+/// ### **`attributes`**
 ///
-/// ## **`default`**
+/// Any attributes specified in `attributes` will be added to the generated function for this
+/// field.  You may also use `attribute` instead of `attributes`.
 ///
-/// Argument: Optional String
+/// The contents may be wrapped with either `()` or `{}` and attributes may optionally be separated
+/// using commas.
+///
+/// ```
+/// # use bauer_macros::Builder;
+/// # use attribute::{my_attribute, my_attribute2};
+/// #[derive(Builder)]
+/// pub struct Foo {
+///     #[builder(
+///         attributes(
+///             #[my_attribute]
+///             #[my_attribute2]
+///         ),
+///     )]
+///     field: u32,
+/// }
+/// ```
+///
+/// ### **`doc`**
+///
+/// Add documentation to the generated function for this field.
+///
+/// `#[doc]` attributes may also be added using this attribute, i.e., `doc(hidden)`.
+///
+/// The contents may be wrapped with either `()` or `{}` and attributes may optionally be separated
+/// using commas.
+///
+/// ```
+/// # use bauer_macros::Builder;
+/// # use attribute::{my_attribute, my_attribute2};
+/// #[derive(Builder)]
+/// pub struct Foo {
+///     #[builder(
+///         doc {
+///             /// Some documentation for my field
+///         },
+///     )]
+///     field_a: u32,
+///     #[builder(default, doc(hidden))]
+///     field_b: u32,
+/// }
+/// ```
+///
+/// ## Type Configuration
+///
+/// ### **`adapter`**
+///
+/// Argument: Closure with input types specified
+///
+/// Create a custom implementation for converting from arguments to a value.
+///
+/// An adapter uses the closure syntax where all arguments have their type specified.  The body of
+/// the closure will then be used to generate the value.  Multiple parameters may be used and their
+/// names and types will appear in the generated signature.
+///
+/// Conflicts with [`into`] and [`tuple`].
+///
+/// ```
+/// # use bauer_macros::Builder;
+/// #[derive(Builder)]
+/// pub struct Foo {
+///     #[builder(adapter = |x: u32, y: u32| format!("x={}, y={}", x, y))]
+///     point: String,
+/// }
+///
+/// let foo = Foo::builder()
+///     .point(5, 23)
+///     .build()?;
+/// assert_eq!(foo.point, "x=5, y=23");
+/// # Ok::<_, Box<dyn std::error::Error>>(())
+/// ```
+///
+/// ### **`default`**
+///
+/// Argument: Optional String Literal
 ///
 /// If no default value is provided, the field will attempt to be set using the [`Default`] trait.  
 /// Otherwise, the passed string will be parsed as an expression and used to set the default (only
@@ -698,7 +876,9 @@
 /// assert_eq!(foo.b, std::f32::consts::PI);
 /// ```
 ///
-/// ## **`repeat`**
+/// ## **`required`**
+///
+/// Argument: None
 ///
 /// Change the behaviour of fields with type `Option<T>` to making it required to be specified as
 /// `Some(value)` or `None`.
@@ -725,89 +905,9 @@
 /// # Ok::<_, Box<dyn std::error::Error>>(())
 /// ```
 ///
-/// ## **`repeat`**
+/// ### **`flag`**
 ///
-/// Make the generated method consume the "inner type" and build the field type at the end.  By
-/// default it uses [`FromIterator`] to build the final type, but that may be overridden with the
-/// [`collector`] attribute.
-///
-/// If the field type has a single generic parameter, then that generic will be chosen as the inner
-/// type. If the field has a different number of generics, or if the inner type needs to be
-/// different, then the type may be set with `repeat = <inner type>`.
-///
-/// ```
-/// # use bauer_macros::Builder;
-/// #[derive(Builder)]
-/// pub struct Foo {
-///     #[builder(repeat)]
-///     items: Vec<u32>,
-///     #[builder(repeat = char)]
-///     chars: String,
-/// }
-///
-/// let foo = Foo::builder()
-///     .items(0)
-///     .items(1)
-///     .items(2)
-///     .chars('a')
-///     .chars('b')
-///     .chars('c')
-///     .build();
-///
-/// assert_eq!(foo.items, [0, 1, 2]);
-/// assert_eq!(foo.chars, "abc");
-/// ```
-///
-/// ## **`repeat_n`**
-///
-/// Ensure that the length of items supplied via [`repeat`] is within a certain range.
-///
-/// The [`repeat`] must be specified before `repeat_n`.
-///
-/// For Owned and Borrowed builders, the range may be any statement that belongs on the left side
-/// of a match statement.  For Type-State builders, the usage is limited to integers (`N`), closed
-/// ranges (`N..M` or `N..=M`), and lower-bounded ranges (`N..`).  The length of a range is limited
-/// to 64 in order to protect against very slow compile-time.  If a larger range is required, the
-/// `unlimited_range` feature may be enabled.
-///
-///
-/// ```
-/// # use bauer_macros::Builder;
-/// #[derive(Debug, Builder)]
-/// pub struct Foo {
-///     #[builder(repeat, repeat_n = 2..=3)]
-///     items: Vec<u32>,
-/// }
-///
-/// let foo = Foo::builder().items(0).items(1).items(2).build();
-/// assert!(foo.is_ok());
-///
-/// let foo = Foo::builder().items(0).build().unwrap_err();
-/// assert_eq!(foo, FooBuildError::RangeItems(1));
-/// ```
-///
-/// ## **`rename`**
-///
-/// Change the name of the generated function from the default value matching the field name.
-///
-/// Note: This still applies the prefix/suffix.  To skip those use [`skip_prefix`]/[`skip_suffix`]
-///
-/// ```
-/// # use bauer_macros::Builder;
-/// #[derive(Builder)]
-/// pub struct Foo {
-///     #[builder(repeat, rename = "item")]
-///     items: Vec<u32>,
-/// }
-///
-/// let foo = Foo::builder()
-///     .item(0)
-///     .item(1)
-///     .build();
-/// assert_eq!(foo.items, [0, 1]);
-/// ```
-///
-/// ## **`flag`**
+/// Argument: None
 ///
 /// Treat the boolean field as a "flag" field -- the setter function accepts no arguments and sets
 /// the field to true if called.
@@ -832,28 +932,9 @@
 /// assert!(!foo.my_flag);
 /// ```
 ///
-/// ## **`skip_prefix`**/**`skip_suffix`**
+/// ### **`into`**
 ///
-/// If a [`prefix`] or [`suffix`] was set in the builder attributes, skip applying those for this
-/// field.  This is especially useful in combination with [`rename`].
-///
-/// ```
-/// # use bauer_macros::Builder;
-/// #[derive(Builder)]
-/// #[builder(prefix = "set_")]
-/// pub struct Foo {
-///     #[builder(repeat, rename = "item", skip_prefix)]
-///     items: Vec<u32>,
-/// }
-///
-/// let foo = Foo::builder()
-///     .item(0)
-///     .item(1)
-///     .build();
-/// assert_eq!(foo.items, [0, 1]);
-/// ```
-///
-/// ## **`into`**
+/// Argument: None
 ///
 /// Make the generated function accept `impl `[`Into`]`<FieldType>`.  This requires the field type
 /// to implement [`From`] on whatever value is passed in.
@@ -873,7 +954,9 @@
 /// # Ok::<_, Box<dyn std::error::Error>>(())
 /// ```
 ///
-/// ## **`tuple`**
+/// ### **`tuple`**
+///
+/// Argument: List of Identifiers
 ///
 /// Make generated function accept each item of the tuple as a separate parameters to the function.
 ///
@@ -906,55 +989,69 @@
 ///     .build();
 /// ```
 ///
-/// ## **`adapter`**
+/// ### **`repeat`**
 ///
-/// Create a custom implementation for converting from arguments to a value.
+/// Argument: Optional Type
 ///
-/// An adapter uses the closure syntax where all arguments have their type specified.  The body of
-/// the closure will then be used to generate the value.  Multiple parameters may be used and their
-/// names and types will appear in the generated signature.
+/// Make the generated method consume the "inner type" and build the field type at the end.  By
+/// default it uses [`FromIterator`] to build the final type, but that may be overridden with the
+/// [`collector`] attribute.
 ///
-/// Conflicts with [`into`] and [`tuple`].
+/// If the field type has a single generic parameter, then that generic will be chosen as the inner
+/// type. If the field has a different number of generics, or if the inner type needs to be
+/// different, then the type may be set with `repeat = <inner type>`.
 ///
 /// ```
 /// # use bauer_macros::Builder;
 /// #[derive(Builder)]
 /// pub struct Foo {
-///     #[builder(adapter = |x: u32, y: u32| format!("x={}, y={}", x, y))]
-///     point: String,
+///     #[builder(repeat)]
+///     items: Vec<u32>,
+///     #[builder(repeat = char)]
+///     chars: String,
 /// }
 ///
 /// let foo = Foo::builder()
-///     .point(5, 23)
-///     .build()?;
-/// assert_eq!(foo.point, "x=5, y=23");
-/// # Ok::<_, Box<dyn std::error::Error>>(())
+///     .items(0)
+///     .items(1)
+///     .items(2)
+///     .chars('a')
+///     .chars('b')
+///     .chars('c')
+///     .build();
+///
+/// assert_eq!(foo.items, [0, 1, 2]);
+/// assert_eq!(foo.chars, "abc");
 /// ```
 ///
-/// ## **`collector`**
+/// ### **`repeat_n`**
 ///
-/// On fields that use [`repeat`], a collector may be specified to use in place of the default
-/// [`FromIterator`] in order to collect the added values differently.
+/// Argument: Number or Range
 ///
-/// The value passed to a collector must be a function with the following signature:
+/// Ensure that the length of items supplied via [`repeat`] is within a certain range.
+///
+/// The [`repeat`] must be specified before `repeat_n`.
+///
+/// For Owned and Borrowed builders, the range may be any statement that belongs on the left side
+/// of a match statement.  For Type-State builders, the usage is limited to integers (`N`), closed
+/// ranges (`N..M` or `N..=M`), and lower-bounded ranges (`N..`).  The length of a range is limited
+/// to 64 in order to protect against very slow compile-time.  If a larger range is required, the
+/// `unlimited_range` feature may be enabled.
+///
 ///
 /// ```
-/// # type RepeatType = u32;
-/// # type FieldType = usize;
-/// fn my_collector(iter: impl ExactSizeIterator<Item = RepeatType>) -> FieldType
-/// # {
-/// #     // just a simple implementation to be sure the signature is correct
-/// #     iter.len()
-/// # }
-/// #
-/// # #[derive(bauer::Builder)]
-/// # struct Foo {
-/// #     #[builder(repeat = u32, collector = my_collector)]
-/// #     field: usize
-/// # }
-/// #
-/// # let foo = Foo::builder().field(0).field(1).field(2).build();
-/// # assert_eq!(foo.field, 3);
+/// # use bauer_macros::Builder;
+/// #[derive(Debug, Builder)]
+/// pub struct Foo {
+///     #[builder(repeat, repeat_n = 2..=3)]
+///     items: Vec<u32>,
+/// }
+///
+/// let foo = Foo::builder().items(0).items(1).items(2).build();
+/// assert!(foo.is_ok());
+///
+/// let foo = Foo::builder().items(0).build().unwrap_err();
+/// assert_eq!(foo, FooBuildError::RangeItems(1));
 /// ```
 ///
 /// Where `RepeatType` is the type determined by the [`repeat`] attribute and `FieldType` is the type
@@ -984,52 +1081,32 @@
 /// assert_eq!(foo.sum, 21 + 34 + 55);
 /// ```
 ///
-/// ## **`attributes`**
+/// ### **`collector`**
 ///
-/// Any attributes specified in `attributes` will be added to the generated function for this
-/// field.  You may also use `attribute` instead of `attributes`.
+/// Argument: Expression
 ///
-/// The contents may be wrapped with either `()` or `{}` and attributes may optionally be separated
-/// using commas.
+/// On fields that use [`repeat`], a collector may be specified to use in place of the default
+/// [`FromIterator`] in order to collect the added values differently.
 ///
-/// ```
-/// # use bauer_macros::Builder;
-/// # use attribute::{my_attribute, my_attribute2};
-/// #[derive(Builder)]
-/// pub struct Foo {
-///     #[builder(
-///         attributes(
-///             #[my_attribute]
-///             #[my_attribute2]
-///         ),
-///     )]
-///     field: u32,
-/// }
-/// ```
-///
-/// ## **`doc`**
-///
-/// Add documentation to the generated function for this field.
-///
-/// `#[doc]` attributes may also be added using this attribute, i.e., `doc(hidden)`.
-///
-/// The contents may be wrapped with either `()` or `{}` and attributes may optionally be separated
-/// using commas.
+/// The value passed to a collector must be a function with the following signature:
 ///
 /// ```
-/// # use bauer_macros::Builder;
-/// # use attribute::{my_attribute, my_attribute2};
-/// #[derive(Builder)]
-/// pub struct Foo {
-///     #[builder(
-///         doc {
-///             /// Some documentation for my field
-///         },
-///     )]
-///     field_a: u32,
-///     #[builder(default, doc(hidden))]
-///     field_b: u32,
-/// }
+/// # type RepeatType = u32;
+/// # type FieldType = usize;
+/// fn my_collector(iter: impl ExactSizeIterator<Item = RepeatType>) -> FieldType
+/// # {
+/// #     // just a simple implementation to be sure the signature is correct
+/// #     iter.len()
+/// # }
+/// #
+/// # #[derive(bauer::Builder)]
+/// # struct Foo {
+/// #     #[builder(repeat = u32, collector = my_collector)]
+/// #     field: usize
+/// # }
+/// #
+/// # let foo = Foo::builder().field(0).field(1).field(2).build();
+/// # assert_eq!(foo.field, 3);
 /// ```
 ///
 /// [`prefix`]:       #prefixsuffix
