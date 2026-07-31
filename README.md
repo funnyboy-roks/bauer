@@ -74,7 +74,7 @@ Attributes that affect the generated struct and other items
 
 | Attribute                                    | Description                                                                                                 | Usage                                        |
 | -------------------------------------------- | ----------------------------------------------------------------------------------------------------------- | -------------------------------------------- |
-| [`kind`]                                     | Set the sub-patten to use for this builder                                                                  | `kind = "borrowed"` or `kind = "type-state"` |
+| [`kind`]                                     | Set the sub-pattern to use for this builder                                                                 | `kind = "borrowed"` or `kind = "type-state"` |
 | [`const`]                                    | Make this builder work at compile-time -- some limitations are added, but most features continue working    | `const`                                      |
 | [`visibility`]                               | Change the visibility of the created builder (defaults to the same visibility as the struct)                | `visibility = pub(crate)`                    |
 | [`crate`]                                    | Override the name of the crate when expanding macros (defaults to `bauer`)                                  | `crate = bauer_renamed`                      |
@@ -148,14 +148,14 @@ Configure how the field's type is constructed or specified by the user
 
 |   Attribute                            | Description                                                                                                 | Usage                              |
 | -------------------------------------- | ----------------------------------------------------------------------------------------------------------- | ---------------------------------- |
-| [`adapter`]                            | Fully cusotmise how functions take arguments and convert them into the field value                          | `adapter = \|<arg>: <ty>\| <expr>` |
+| [`adapter`]                            | Fully customise how functions take arguments and convert them into the field value                          | `adapter = \|<arg>: <ty>\| <expr>` |
 | [`default`]                            | Specify a default value or use [`Default`]                                                                  | `default` or `default = <value>`   |
 | [`required`]                           | Make an `Option` field required to be specified as `Some(value)` or `None`                                  | `required`                         |
 | [`flag`]                               | Mark a boolean field as a flag, meaning that the if the function is called, the field will be marked true   | `flag`                             |
 | [`into`]                               | Make functions accept `impl `[`Into`]`<Field>`                                                              | `into`                             |
 | [`tuple`]                              | Make functions accept tuple items as separate arguments                                                     | `tuple` or `tuple(x, y)`           |
-| [`repeat`]                             | Allow repating call to add items to a structure                                                             | `repeat` or `repeat = <type>`      |
-| [`repeat_n`]                           | Contorl the number times a `repeat` field is allowed to be set.  This controls the length of the final data | `repeat_n = 1..` or `repeat_n = 4` |
+| [`repeat`]                             | Allow repeating call to add items to a structure                                                            | `repeat` or `repeat = <type>`      |
+| [`repeat_n`]                           | Control the number times a `repeat` field is allowed to be set.  This controls the length of the final data | `repeat_n = 1..` or `repeat_n = 4` |
 | [`collector`]                          | Use a custom collector for converting into the target data structure (default: [`FromIterator::from_iter`]) | `collector = <function>`           |
 
 [`adapter`]: https://docs.rs/bauer/latest/bauer/derive.Builder.html#adapter
