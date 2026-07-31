@@ -20,7 +20,7 @@ error: `repeat` cannot be added with `default`
    |
    = note: this error originates in the macro `tests` (in Nightly builds, run with -Z macro-backtrace for more info)
 
-error: Unknown attribute 'foo'.  Valid attribute are: 'default, into, repeat, repeat_n, rename, skip_prefix, skip_suffix, tuple, adapter, attributes, doc, collector, skip, visibility, associated, required'
+error: Unknown attribute 'foo'.  Valid attribute are: 'default, into, repeat, repeat_n, rename, skip_prefix, skip_suffix, tuple, adapter, attributes, doc, collector, skip, visibility, associated, required, flag'
   --> tests/ui/multiple-errors.fail.rs:12:27
    |
 12 |                 #[builder(foo)]
@@ -64,7 +64,7 @@ error: `repeat` cannot be added with `default`
    |
    = note: this error originates in the macro `tests` (in Nightly builds, run with -Z macro-backtrace for more info)
 
-error: Unknown attribute 'foo'.  Valid attribute are: 'default, into, repeat, repeat_n, rename, skip_prefix, skip_suffix, tuple, adapter, attributes, doc, collector, skip, visibility, associated, required'
+error: Unknown attribute 'foo'.  Valid attribute are: 'default, into, repeat, repeat_n, rename, skip_prefix, skip_suffix, tuple, adapter, attributes, doc, collector, skip, visibility, associated, required, flag'
   --> tests/ui/multiple-errors.fail.rs:12:27
    |
 12 |                 #[builder(foo)]
@@ -108,7 +108,7 @@ error: `repeat` cannot be added with `default`
    |
    = note: this error originates in the macro `tests` (in Nightly builds, run with -Z macro-backtrace for more info)
 
-error: Unknown attribute 'foo'.  Valid attribute are: 'default, into, repeat, repeat_n, rename, skip_prefix, skip_suffix, tuple, adapter, attributes, doc, collector, skip, visibility, associated, required'
+error: Unknown attribute 'foo'.  Valid attribute are: 'default, into, repeat, repeat_n, rename, skip_prefix, skip_suffix, tuple, adapter, attributes, doc, collector, skip, visibility, associated, required, flag'
   --> tests/ui/multiple-errors.fail.rs:12:27
    |
 12 |                 #[builder(foo)]

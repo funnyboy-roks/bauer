@@ -105,6 +105,7 @@
 //! | [`tuple`]                              | Make functions accept tuple items as separate arguments                                                     | `tuple` or `tuple(x, y)`           |
 //! | [`adapter`]                            | Fully cusotmise how functions take arguments and convert them into the field value                          | `adapter = \|<arg>: <ty>\| <expr>` |
 //! | [`rename`]                             | Rename the function that is generated for the field                                                         | `rename = <name>`                  |
+//! | [`flag`]                               | Mark a boolean field as a flag, meaning that the if the function is called, the field will be marked true   | `flag`                             |
 //! | [`skip_prefix`/`skip_suffix`]          | Skip using the prefix/suffix from the builder attribute                                                     | `skip_prefix` or `skip_suffix`     |
 //! | [`attribute`/`attributes`][field_attr] | Set attribute(s) on the function generated for this field                                                   | `attribute(#[foo])`                |
 //! | [`doc`/`docs`][field_doc]              | Set documentation items on the function generated for this field                                            | `doc(<doc strings>)`               |
@@ -121,6 +122,7 @@
 //! [`tuple`]: Builder#tuple
 //! [`adapter`]: Builder#adapter
 //! [`rename`]: Builder#rename
+//! [`flag`]: Builder#flag
 //! [`skip_prefix`/`skip_suffix`]: Builder#skip_prefixskip_suffix
 //! [field_attr]: Builder#attributes-1
 //! [field_doc]: Builder#doc-1
@@ -803,6 +805,31 @@
 ///     .item(1)
 ///     .build();
 /// assert_eq!(foo.items, [0, 1]);
+/// ```
+///
+/// ## **`flag`**
+///
+/// Treat the boolean field as a "flag" field -- the setter function accepts no arguments and sets
+/// the field to true if called.
+///
+/// The field must be of type `bool`.
+///
+/// ```
+/// # use bauer_macros::Builder;
+/// #[derive(Builder)]
+/// pub struct Foo {
+///     #[builder(flag)]
+///     my_flag: bool,
+/// }
+///
+/// let foo = Foo::builder()
+///     .my_flag()
+///     .build();
+/// assert!(foo.my_flag);
+///
+/// let foo = Foo::builder()
+///     .build();
+/// assert!(!foo.my_flag);
 /// ```
 ///
 /// ## **`skip_prefix`**/**`skip_suffix`**

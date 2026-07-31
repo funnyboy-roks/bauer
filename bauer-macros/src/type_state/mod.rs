@@ -66,6 +66,7 @@ fn build_fn(
                     }
                 }
             }
+            WrappedType::Flag => quote! { inner.#field_i },
             WrappedType::Option(_) => quote! { inner.#field_i },
             WrappedType::Repeat(
                 ref inner_ty,
@@ -342,6 +343,9 @@ pub fn type_state_builder(
                 let ty = &f.ty;
                 quote! { ::core::mem::MaybeUninit<#ty> }
             }
+            WrappedType::Flag => {
+                quote! { bool }
+            }
             WrappedType::Option(ty) => quote! { ::core::option::Option<#ty> },
             WrappedType::Repeat(
                 ty,
@@ -362,6 +366,7 @@ pub fn type_state_builder(
 
         match f.wrapped_ty {
             WrappedType::None => quote! { ::core::mem::MaybeUninit::uninit() },
+            WrappedType::Flag => quote! { false },
             WrappedType::Option(_) => quote! { ::core::option::Option::None },
             WrappedType::Repeat(
                 _,
@@ -463,7 +468,13 @@ pub fn type_state_builder(
             continue; // skip
         }
 
-        let (args, value) = f.attr.to_args_and_value(f.arg_ty(), &f.ident);
+        let (args, value, value_ty) = if let WrappedType::Flag = f.wrapped_ty {
+            (TokenStream::new(), quote! { true }, &parse_quote! { bool })
+        } else {
+            let ty = f.arg_ty().expect("None iff wrapped_ty != Flag");
+            let (args, val) = f.attr.to_args_and_value(ty, &f.ident);
+            (args, val, ty)
+        };
         let fn_ident = f.function_ident(builder_attr);
 
         fn ident_to_type(ident: &Ident) -> Type {
@@ -477,11 +488,11 @@ pub fn type_state_builder(
         let fn_attributes = &f.attr.attributes;
 
         let field_i = f.tuple_index();
-        let value_ty = &f.arg_ty();
         let vis = &f.attr.vis;
 
         let fun = match f.wrapped_ty {
-            WrappedType::None | WrappedType::Option(_) => {
+            WrappedType::None | WrappedType::Option(_) | WrappedType::Flag => {
+                // NOTE: be sure to update match below
                 let impl_generics_fields = CustomImplGenerics::new(
                     &input.generics,
                     generic_fields[..i]
@@ -510,6 +521,9 @@ pub fn type_state_builder(
                 let setter = match f.wrapped_ty {
                     WrappedType::None => quote! {
                         this.#inner.#field_i.write(value);
+                    },
+                    WrappedType::Flag => quote! {
+                        this.#inner.#field_i = value;
                     },
                     WrappedType::Option(_) => quote! {
                         this.#inner.#field_i = Some(value);

@@ -348,6 +348,7 @@ pub fn builder(input: TokenStream) -> TokenStream {
                         quote! { ::core::option::Option::None },
                     )
                 }
+                WrappedType::Flag => (quote! { bool }, quote! { false }),
                 WrappedType::Option(ty) => (
                     quote! { ::core::option::Option<#ty> },
                     quote! { ::core::option::Option::None },
@@ -404,6 +405,7 @@ pub fn builder(input: TokenStream) -> TokenStream {
         } else if !field.wrapped_ty.is_none() {
             match &field.wrapped_ty {
                 WrappedType::None => unreachable!("Checked in if branch"),
+                WrappedType::Flag => quote! { inner.#field_i },
                 WrappedType::Option(_) => quote! { inner.#field_i.take() },
                 WrappedType::Repeat(inner_ty, rep @ Repeat { collector, .. }) => {
                     if let Len::Raw { pattern, error } = &rep.len {
