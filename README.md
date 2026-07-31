@@ -114,6 +114,7 @@ All of the attributes that may be applied to fields are listed below.  These go 
 | [`tuple`]                              | Make functions accept tuple items as separate arguments                                                     | `tuple` or `tuple(x, y)`           |
 | [`adapter`]                            | Fully cusotmise how functions take arguments and convert them into the field value                          | `adapter = \|<arg>: <ty>\| <expr>` |
 | [`rename`]                             | Rename the function that is generated for the field                                                         | `rename = <name>`                  |
+| [`flag`]                               | Mark a boolean field as a flag, meaning that the if the function is called, the field will be marked true   | `flag`                             |
 | [`skip_prefix`/`skip_suffix`]          | Skip using the prefix/suffix from the builder attribute                                                     | `skip_prefix` or `skip_suffix`     |
 | [`attribute`/`attributes`][field_attr] | Set attribute(s) on the function generated for this field                                                   | `attribute(#[foo])`                |
 | [`doc`/`docs`][field_doc]              | Set documentation items on the function generated for this field                                            | `doc(<doc strings>)`               |
@@ -130,6 +131,7 @@ All of the attributes that may be applied to fields are listed below.  These go 
 [`tuple`]: https://docs.rs/bauer/latest/bauer/derive.Builder.html#tuple
 [`adapter`]: https://docs.rs/bauer/latest/bauer/derive.Builder.html#adapter
 [`rename`]: https://docs.rs/bauer/latest/bauer/derive.Builder.html#rename
+[`flag`]: https://docs.rs/bauer/latest/bauer/derive.Builder.html#flag
 [`skip_prefix`/`skip_suffix`]: https://docs.rs/bauer/latest/bauer/derive.Builder.html#skip_prefixskip_suffix
 [field_attr]: https://docs.rs/bauer/latest/bauer/derive.Builder.html#attributes-1
 [field_doc]: https://docs.rs/bauer/latest/bauer/derive.Builder.html#doc-1
