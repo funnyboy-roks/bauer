@@ -946,7 +946,7 @@ pub struct FieldAttr {
     pub tuple: Option<Option<Vec<Ident>>>,
     pub adapter: Option<Adapter>,
     pub attributes: Vec<syn::Attribute>,
-    set: [bool; const { Attribute::VARIANTS.len() }],
+    set: [Option<Ident>; const { Attribute::VARIANTS.len() }],
 }
 
 impl FieldAttr {
@@ -1015,10 +1015,10 @@ impl FieldAttr {
             let ident: Ident = input.parse()?;
             let attr = Attribute::parse(&ident)?;
 
-            if self.set[attr.index()] && attr.single_use() {
+            if self.set[attr.index()].is_some() && attr.single_use() {
                 bail!(ident.span() => "`{}` may only be used once", attr.as_str());
             }
-            self.set[attr.index()] = true;
+            self.set[attr.index()] = Some(ident.clone());
 
             match attr {
                 Attribute::Default => {
@@ -1273,18 +1273,12 @@ impl FieldAttr {
                         *wrapped_type = WrappedType::None;
                     }
                 },
-                Attribute::Flag => {
-                    if self.default.is_some() {
-                        bail!(ident.span() => "`flag` cannot be added with `default`");
+                Attribute::Flag => match &field.ty {
+                    Type::Path(p) if p.path.is_ident("bool") => {
+                        *wrapped_type = WrappedType::Flag;
                     }
-
-                    match &field.ty {
-                        Type::Path(p) if p.path.is_ident("bool") => {
-                            *wrapped_type = WrappedType::Flag;
-                        }
-                        _ => bail!(ident.span() => "`flag` may only be added on `bool` fields"),
-                    }
-                }
+                    _ => bail!(ident.span() => "`flag` may only be added on `bool` fields"),
+                },
             }
             n_attr += 1;
 
@@ -1320,13 +1314,42 @@ impl FieldAttr {
                 Attribute::Skip,
                 Attribute::Visibility,
                 Attribute::Required,
+                Attribute::Flag,
             ];
 
-            let mut conflicts = CONFLICT.iter().filter(|a| self.set[a.index()]);
+            let mut conflicts = CONFLICT.iter().filter(|a| self.set[a.index()].is_some());
             if let Some(next) = conflicts.next() {
                 bail!(assoc.span() =>
                     "The following attributes can not be used on a field marked as `{}`: {}{}",
                     Attribute::Associated.as_str(),
+                    next.as_str(),
+                    conflicts.fold(String::new(), |mut s, c| {
+                        write!(s, ", {}", c.as_str()).expect("Write to string can't fail");
+                        s
+                    })
+                );
+            }
+        }
+        if let Some(flag) = &self.set[Attribute::Flag.index()] {
+            /// attributes that conflict with associated
+            const CONFLICT: &[Attribute] = &[
+                Attribute::Default,
+                Attribute::Into,
+                Attribute::Repeat,
+                Attribute::RepeatN,
+                Attribute::Tuple,
+                Attribute::Adapter,
+                Attribute::Collector,
+                Attribute::Skip,
+                Attribute::Associated,
+                Attribute::Required,
+            ];
+
+            let mut conflicts = CONFLICT.iter().filter(|a| self.set[a.index()].is_some());
+            if let Some(next) = conflicts.next() {
+                bail!(flag.span() =>
+                    "The following attributes can not be used on a field marked as `{}`: {}{}",
+                    Attribute::Flag.as_str(),
                     next.as_str(),
                     conflicts.fold(String::new(), |mut s, c| {
                         write!(s, ", {}", c.as_str()).expect("Write to string can't fail");

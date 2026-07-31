@@ -1,0 +1,23 @@
+error: `flag` may only be added on `bool` fields
+ --> tests/ui/flag-conflict.fail.rs:5:15
+  |
+5 |     #[builder(flag)] // fail
+  |               ^^^^
+
+error: `flag` may only be added on `bool` fields
+ --> tests/ui/flag-conflict.fail.rs:7:15
+  |
+7 |     #[builder(flag)] // fail
+  |               ^^^^
+
+error: The following attributes can not be used on a field marked as `flag`: default
+ --> tests/ui/flag-conflict.fail.rs:9:24
+  |
+9 |     #[builder(default, flag)] // fail
+  |                        ^^^^
+
+error: The following attributes can not be used on a field marked as `flag`: default
+  --> tests/ui/flag-conflict.fail.rs:11:15
+   |
+11 |     #[builder(flag, default)] // fail
+   |               ^^^^
