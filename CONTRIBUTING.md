@@ -46,7 +46,7 @@ cargo +1.85 test --test ui
 
 #### New Functionality
 
-All new functionality should have at least an integration test in the
+All new functionality should have at least one integration test in the
 `bauer` crate.  The general shape of the integration tests is as
 follows:
 
@@ -77,6 +77,11 @@ and if the output is correct, save it with
 ```sh
 TRYBUILD=overwrite cargo +1.85 test --test ui
 ```
+
+NOTE: This is just minimum testing requirements for _all_ new features.
+If you're working on a bigger feature, consider adding more integration
+and UI tests.  If you're writing code that could benefit from unit
+testing, please add that as well.
 
 ### Documentation
 
