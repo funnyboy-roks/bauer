@@ -62,7 +62,7 @@ test.  UI testing is done using the
 [`trybuild`](https://docs.rs/trybuid) crate.  To create a UI test, add a
 file into `bauer/tests/ui` with a name following this pattern:
 `{name}.fail.rs` where `{name}` is replaced with a dash-separated short
-title for the test.
+title for the test, such as `adapter-wrong-type.fail.rs`.
 
 The test should contain minimal code to produce the error message or
 expected output.  Once the test has been written, ensure it has the
