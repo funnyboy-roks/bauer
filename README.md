@@ -171,27 +171,3 @@ Configure how the field's type is constructed or specified by the user
 <!-- cargo-rdme end -->
 
 [`Builder`]: https://docs.rs/bauer/latest/bauer/derive.Builder.html
-
-## Testing
-
-All tests except for the UI tests should work on any rust version and
-can simply be run with
-
-```sh
-cargo test
-```
-
-If you're using rust 1.85 (or `+1.85`), then the UI tests will also be
-run.
-
-To specifically run the UI tests, use
-
-```sh
-cargo +1.85 test --test ui
-```
-
-and if a change to the UI tests has been made, update the values with
-
-```sh
-TRYBUILD=overwrite cargo +1.85 test --test ui
-```
